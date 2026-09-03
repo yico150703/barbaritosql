@@ -8,9 +8,22 @@ from werkzeug.security import generate_password_hash
 
 from app import create_app
 from app.extensions import db
-from app.models.opcion_menu import OpcionMenu, OpcionMenuPerfil
-from app.models.perfil import Perfil
-from app.models.usuario import Usuario, UsuarioPerfil
+from app.models import (
+    CategoriaProducto,
+    InventarioCierre,
+    InventarioCierreDetalle,
+    MovimientoInventario,
+    MovimientoInventarioDetalle,
+    OpcionMenu,
+    OpcionMenuPerfil,
+    OrdenCompra,
+    OrdenCompraDetalle,
+    Perfil,
+    Producto,
+    Proveedor,
+    Usuario,
+    UsuarioPerfil,
+)
 
 app = create_app()
 
