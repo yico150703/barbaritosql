@@ -98,15 +98,38 @@ def create_app(config_object=Config):
     # Auto-verificación e inicialización automática de base de datos en nube o local
     with app.app_context():
         try:
-            from sqlalchemy import inspect
+            from sqlalchemy import inspect, text
             inspector = inspect(db.engine)
             tables = inspector.get_table_names()
             tablas_requeridas = {"usuario", "perfiles", "usuario_perfiles", "opcion_menu", "perfil_opcion_menu"}
-            if not tablas_requeridas.issubset(set(tables)):
-                print("Tablas requeridas ausentes en la BD. Creando y poblando datos...")
+
+            # Verificar si la tabla usuario tiene la columna correcta 'id_usuario'
+            columnas_usuario = []
+            if "usuario" in tables:
+                columnas_usuario = [col["name"] for col in inspector.get_columns("usuario")]
+
+            esquema_incompatible = "usuario" in tables and "id_usuario" not in columnas_usuario
+
+            if not tablas_requeridas.issubset(set(tables)) or esquema_incompatible:
+                print(f"Esquema incompatible o ausente (id_usuario presente: {'id_usuario' in columnas_usuario}). Reiniciando esquema con CASCADE...")
+                if db.engine.dialect.name == "postgresql":
+                    try:
+                        db.session.rollback()
+                        db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+                        db.session.commit()
+                    except Exception as drop_err:
+                        print("Aviso al ejecutar DROP SCHEMA public:", drop_err)
+                        db.session.rollback()
+                        db.drop_all()
+                        db.session.commit()
+                else:
+                    db.drop_all()
+                    db.session.commit()
+
                 db.create_all()
                 from seed import poblar_datos
                 poblar_datos()
+                print("Base de datos recreada y poblada con nombres snake_case.")
             else:
                 from .models.usuario import Usuario
                 try:
@@ -115,8 +138,14 @@ def create_app(config_object=Config):
                         from seed import poblar_datos
                         poblar_datos()
                 except Exception as schema_err:
-                    print(f"Esquema previo incompatible detectado ({schema_err}). Recreando tablas...")
-                    db.drop_all()
+                    print(f"Error al verificar modelo Usuario ({schema_err}). Recreando...")
+                    if db.engine.dialect.name == "postgresql":
+                        db.session.rollback()
+                        db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+                        db.session.commit()
+                    else:
+                        db.drop_all()
+                        db.session.commit()
                     db.create_all()
                     from seed import poblar_datos
                     poblar_datos()

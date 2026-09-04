@@ -56,13 +56,29 @@ def db_status():
 def init_db():
     """
     Endpoint GET/POST /api/init-db
-    Crea las 14 tablas maestras y puebla todos los datos iniciales (roles, usuarios, menús, productos).
-    Parámetros opcionales: ?reset=true (para descartar tablas previas y recrear en limpio).
+    Elimina cualquier tabla o columna incompatible previa (como idusuario),
+    crea las 14 tablas maestras con esquema snake_case y puebla todos los datos iniciales.
     """
     try:
-        reset = request.args.get("reset", "").lower() in ["true", "1", "yes"]
-        if reset:
+        from sqlalchemy import text
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+        # Limpiar cualquier tabla incompatible existente con CASCADE
+        if db.engine.dialect.name == "postgresql":
+            try:
+                db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+                db.session.commit()
+            except Exception as schema_err:
+                print("Aviso al reiniciar schema public:", schema_err)
+                db.session.rollback()
+                db.drop_all()
+                db.session.commit()
+        else:
             db.drop_all()
+            db.session.commit()
 
         db.create_all()
 
@@ -75,8 +91,7 @@ def init_db():
 
         return jsonify({
             "success": True,
-            "mensaje": "Base de datos inicializada y poblada exitosamente en la nube.",
-            "reset_ejecutado": reset,
+            "mensaje": "Base de datos reiniciada y poblada exitosamente en la nube con nombres snake_case.",
             "tablas_creadas": tablas,
             "total_tablas": len(tablas),
             "usuarios_cargados": [

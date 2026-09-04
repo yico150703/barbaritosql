@@ -6,7 +6,6 @@ Carga los roles, usuarios con contraseñas hasheadas y el árbol jerárquico de 
 from datetime import datetime
 from werkzeug.security import generate_password_hash
 
-from app import create_app
 from app.extensions import db
 from app.models import (
     CategoriaProducto,
@@ -24,8 +23,6 @@ from app.models import (
     Usuario,
     UsuarioPerfil,
 )
-
-app = create_app()
 
 PERFILES_DATA = [
     {
