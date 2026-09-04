@@ -95,4 +95,32 @@ def create_app(config_object=Config):
 
     register_error_handlers(app)
 
+    # Auto-verificación e inicialización automática de base de datos en nube o local
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            tablas_requeridas = {"usuario", "perfiles", "usuario_perfiles", "opcion_menu", "perfil_opcion_menu"}
+            if not tablas_requeridas.issubset(set(tables)):
+                print("Tablas requeridas ausentes en la BD. Creando y poblando datos...")
+                db.create_all()
+                from seed import poblar_datos
+                poblar_datos()
+            else:
+                from .models.usuario import Usuario
+                try:
+                    if Usuario.query.count() == 0:
+                        print("BD conectada sin usuarios. Ejecutando poblar_datos()...")
+                        from seed import poblar_datos
+                        poblar_datos()
+                except Exception as schema_err:
+                    print(f"Esquema previo incompatible detectado ({schema_err}). Recreando tablas...")
+                    db.drop_all()
+                    db.create_all()
+                    from seed import poblar_datos
+                    poblar_datos()
+        except Exception as init_err:
+            print("Aviso al verificar/inicializar BD al inicio:", init_err)
+
     return app
