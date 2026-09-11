@@ -51,10 +51,13 @@ USUARIOS_DATA = [
         "IdUsuario": 1,
         "DNI": 90999999,
         "Nombres": "Carlos",
-        "ApellidoPaterno": "Rodríguez",
-        "ApellidoMaterno": "García",
-        "Celular": 999111222,
+        "ApellidoPaterno": "Rodriguez",
+        "ApellidoMaterno": "Torres",
+        "Celular": 987654321,
         "CorreoElectronico": "crodriguez@gmail.com",
+        "Clave": "Tec123*",
+        "UsuarioCreacion": None,
+        "FechaCreacion": datetime(2026, 8, 28, 9, 0, 0),
         "perfiles": [1],  # Técnico (acceso general a todos los paneles)
     },
     {
@@ -62,9 +65,12 @@ USUARIOS_DATA = [
         "DNI": 56879826,
         "Nombres": "José",
         "ApellidoPaterno": "Ríos",
-        "ApellidoMaterno": "Pérez",
-        "Celular": 988222333,
+        "ApellidoMaterno": "Martínez",
+        "Celular": 923876122,
         "CorreoElectronico": "jrios@gmail.com",
+        "Clave": "Ger123*",
+        "UsuarioCreacion": 1,
+        "FechaCreacion": datetime(2026, 8, 28, 9, 10, 0),
         "perfiles": [2],  # Gerente (acceso directo)
     },
     {
@@ -72,9 +78,12 @@ USUARIOS_DATA = [
         "DNI": 90157845,
         "Nombres": "Roberto",
         "ApellidoPaterno": "Díaz",
-        "ApellidoMaterno": "Castro",
-        "Celular": 977333444,
+        "ApellidoMaterno": "Guerrero",
+        "Celular": 987456100,
         "CorreoElectronico": "rdiaz@gmail.com",
+        "Clave": "Equ123*",
+        "UsuarioCreacion": 1,
+        "FechaCreacion": datetime(2026, 8, 28, 9, 20, 0),
         "perfiles": [3],  # Miembro de equipo (acceso directo)
     },
 ]
@@ -222,7 +231,6 @@ def _ejecutar_poblado_interno():
     db.session.commit()
 
     print("Poblando usuarios...")
-    hash_comun = generate_password_hash(PASSWORD_DEFAULT)
     for udata in USUARIOS_DATA:
         usuario = Usuario.query.filter(
             (Usuario.CorreoElectronico == udata["CorreoElectronico"]) |
@@ -238,10 +246,11 @@ def _ejecutar_poblado_interno():
                 ApellidoMaterno=udata.get("ApellidoMaterno"),
                 Celular=str(udata.get("Celular")) if udata.get("Celular") else None,
                 CorreoElectronico=udata["CorreoElectronico"],
-                Clave=hash_comun,
-                FechaCreacion=datetime.now(),
+                UsuarioCreacion=udata.get("UsuarioCreacion"),
+                FechaCreacion=udata.get("FechaCreacion", datetime.now()),
                 EstadoRegistro=1
             )
+            usuario.set_clave(udata["Clave"])
             db.session.add(usuario)
         else:
             usuario.DNI = str(udata["DNI"])
@@ -250,7 +259,9 @@ def _ejecutar_poblado_interno():
             usuario.ApellidoMaterno = udata.get("ApellidoMaterno")
             usuario.Celular = str(udata.get("Celular")) if udata.get("Celular") else None
             usuario.CorreoElectronico = udata["CorreoElectronico"]
-            usuario.Clave = hash_comun
+            usuario.UsuarioCreacion = udata.get("UsuarioCreacion")
+            usuario.FechaCreacion = udata.get("FechaCreacion", usuario.FechaCreacion)
+            usuario.set_clave(udata["Clave"])
             usuario.EstadoRegistro = 1
 
         db.session.commit()
@@ -401,10 +412,10 @@ def _ejecutar_poblado_interno():
 
     print("\nSeed completado con éxito!")
     print("------------------------------------------------------------")
-    print("Usuarios de prueba cargados (Clave para todos: password123):")
-    print("1. Carlos Rodríguez  -> crodriguez@gmail.com  (Técnico + Gerente)")
-    print("2. José Ríos         -> jrios@gmail.com        (Gerente)")
-    print("3. Roberto Díaz      -> rdiaz@gmail.com        (Miembro de equipo)")
+    print("Usuarios y contraseñas oficiales cargados:")
+    print("1. Carlos Rodriguez Torres -> crodriguez@gmail.com | Clave: Tec123* (Técnico)")
+    print("2. José Ríos Martínez      -> jrios@gmail.com      | Clave: Ger123* (Gerente)")
+    print("3. Roberto Díaz Guerrero   -> rdiaz@gmail.com      | Clave: Equ123* (Miembro de equipo)")
     print("------------------------------------------------------------")
 
 

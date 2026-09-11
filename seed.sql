@@ -168,12 +168,11 @@ INSERT INTO perfiles (id_perfil, nombre, descripcion, estado_registro) VALUES
 (2, 'Gerente', 'Encargado de supervisar y administrar los recursos', 1),
 (3, 'Miembro de equipo', 'Usuario operativo para recepcionar y verificar el inventario', 1);
 
--- USUARIOS (Clave: password123)
--- Hasheada con scrypt compatible con werkzeug.security
-INSERT INTO usuario (id_usuario, dni, nombres, apellido_paterno, apellido_materno, celular, correo_electronico, clave, estado_registro) VALUES
-(1, '90999999', 'Carlos', 'Rodríguez', 'García', '999111222', 'crodriguez@gmail.com', 'scrypt:32768:8:1$m9b3xJ7c9X0Z$7b21fb37cb8d3b8412efaa87bb9cfb297b83ec50bcba4b54e7d189f7836b701c40ad17f300c3c52e448b26e2e5c8e3caecb0625470d0615566cf2c0be47c7c34', 1),
-(2, '56879826', 'José', 'Ríos', 'Pérez', '988222333', 'jrios@gmail.com', 'scrypt:32768:8:1$m9b3xJ7c9X0Z$7b21fb37cb8d3b8412efaa87bb9cfb297b83ec50bcba4b54e7d189f7836b701c40ad17f300c3c52e448b26e2e5c8e3caecb0625470d0615566cf2c0be47c7c34', 1),
-(3, '90157845', 'Roberto', 'Díaz', 'Castro', '977333444', 'rdiaz@gmail.com', 'scrypt:32768:8:1$m9b3xJ7c9X0Z$7b21fb37cb8d3b8412efaa87bb9cfb297b83ec50bcba4b54e7d189f7836b701c40ad17f300c3c52e448b26e2e5c8e3caecb0625470d0615566cf2c0be47c7c34', 1);
+-- USUARIOS (Carlos Rodriguez: Tec123*, José Ríos: Ger123*, Roberto Díaz: Equ123*)
+INSERT INTO usuario (id_usuario, dni, nombres, apellido_paterno, apellido_materno, celular, correo_electronico, clave, usuario_creacion, fecha_creacion, usuario_modificacion, fecha_modificacion, estado_registro) VALUES
+(1, '90999999', 'Carlos', 'Rodriguez', 'Torres', '987654321', 'crodriguez@gmail.com', '$2b$12$uf4lPK8fYBijFzJ7ek1ZlOvjYIxEajqIC27IIHNinBTlYSRlLaWZ2', NULL, '2026-08-28 09:00:00', NULL, NULL, 1),
+(2, '56879826', 'José', 'Ríos', 'Martínez', '923876122', 'jrios@gmail.com', '$2b$12$gWqHThRLl8tZMVHgqg7vtuahBiMhWiPGCulV0m2vSOQvavjDazIPi', 1, '2026-08-28 09:10:00', NULL, NULL, 1),
+(3, '90157845', 'Roberto', 'Díaz', 'Guerrero', '987456100', 'rdiaz@gmail.com', '$2b$12$d.QMPuYtQ.anZUvI58jTseyRr.JmlMMRv28qJ6LTDTGWS5GkiAIYW', 1, '2026-08-28 09:20:00', NULL, NULL, 1);
 
 -- ASIGNACIONES DE ROLES
 INSERT INTO usuario_perfiles (id_usuario, id_perfil, estado_registro) VALUES 
