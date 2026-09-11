@@ -206,7 +206,7 @@ INSERT INTO opcion_menu (id_opcion_menu, nombre, url_menu, descripcion, id_padre
 (21, 'Registrar solicitud', '/home/solicitudes/registrar', 'Registro de solicitud de compra', 20, 1),
 (22, 'Detalle de solicitud', '/home/solicitudes/detalle', 'Visualización de solicitudes de compra', 20, 1),
 (23, 'Editar solicitud', '/home/solicitudes/editar', 'Modificación de solicitudes de compra', 20, 1),
-(24, 'Realizar inventario', '/home/inventario/realizar', 'Toma física de inventario cíclico', NULL, 1),
+(24, 'Realizar inventario', '/home/inventario-realizar', 'Toma física de inventario cíclico', NULL, 1),
 (25, 'Órdenes de compra', '/home/ordenes-compra', 'Emisión de órdenes de aprovisionamiento', NULL, 1),
 (26, 'Detalle de orden de compra', '/home/ordenes-compra/detalle', 'Detalle de orden de compra', 25, 1),
 (27, 'Mantenimiento de Perfiles', '/home/perfiles', 'Gestión de roles y perfiles', 2, 1),
@@ -254,7 +254,9 @@ INSERT INTO perfil_opcion_menu (id_opcion_menu, id_perfil, orden, estado_registr
 (8, 3, 2, 1),
 (14, 3, 3, 1),
 (15, 3, 1, 1),
+(16, 3, 2, 1),
 (20, 3, 4, 1),
+(22, 3, 1, 1),
 (24, 3, 5, 1);
 
 -- CATEGORÍAS Y PRODUCTOS INICIALES PARA EL ALMACÉN

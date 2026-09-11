@@ -104,7 +104,7 @@ OPCIONES_DATA = [
     (21, "Registrar solicitud", "/home/solicitudes/registrar", "Registro de solicitud de compra", 20),
     (22, "Detalle de solicitud", "/home/solicitudes/detalle", "Visualización de solicitudes de compra", 20),
     (23, "Editar solicitud", "/home/solicitudes/editar", "Modificación de solicitudes de compra", 20),
-    (24, "Realizar inventario", "/home/inventario/realizar", "Toma física de inventario cíclico", None),
+    (24, "Realizar inventario", "/home/inventario-realizar", "Toma física de inventario cíclico", None),
     (25, "Órdenes de compra", "/home/ordenes-compra", "Emisión de órdenes de aprovisionamiento", None),
     (26, "Detalle de orden de compra", "/home/ordenes-compra/detalle", "Detalle de orden de compra", 25),
     (27, "Mantenimiento de Perfiles", "/home/perfiles", "Gestión de roles y perfiles", 2),
@@ -150,7 +150,9 @@ ASIGNACIONES_DATA = [
     (8, 3, 2),
     (14, 3, 3),
     (15, 3, 1),
+    (16, 3, 2),
     (20, 3, 4),
+    (22, 3, 1),
     (24, 3, 5),
 ]
 

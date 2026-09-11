@@ -383,12 +383,23 @@ def registrar_movimiento():
 
 @bp.route("/movimientos/<int:id_movimiento>", methods=["PUT"])
 @jwt_required()
-@requiere_rol(1, 2, "Técnico", "Gerente")
 def editar_movimiento(id_movimiento):
     asegurar_esquema()
     mov = MovimientoInventario.query.filter_by(id_movimiento_inventario=id_movimiento).first()
     if not mov:
         return jsonify({"success": False, "mensaje": "Movimiento no encontrado."}), 404
+
+    id_auth = get_jwt_identity()
+    user_id = int(id_auth) if id_auth else None
+    u = Usuario.query.filter_by(IdUsuario=user_id).first() if user_id else None
+    es_admin = any(p.IdPerfil in (1, 2) for p in u.perfiles) if (u and u.perfiles) else False
+
+    # REGLA: Si no es admin/gerente, únicamente puede editar los movimientos que él mismo registró
+    if not es_admin and mov.usuario_registro and int(mov.usuario_registro) != user_id:
+        return jsonify({
+            "success": False,
+            "mensaje": "Acceso denegado: Solo puedes editar movimientos que tú mismo hayas registrado."
+        }), 403
 
     datos = request.get_json() or {}
     if "motivoMovimiento" in datos and datos["motivoMovimiento"]:
@@ -403,7 +414,6 @@ def editar_movimiento(id_movimiento):
         except Exception:
             pass
 
-    id_auth = get_jwt_identity()
     registrar_actividad(
         "EDITAR",
         "KARDEX",
@@ -436,6 +446,7 @@ def listar_solicitudes():
 
 @bp.route("/solicitudes", methods=["POST"])
 @jwt_required()
+@requiere_rol(1, 2, "Técnico", "Gerente")
 def registrar_solicitud():
     asegurar_esquema()
     datos = request.get_json() or {}

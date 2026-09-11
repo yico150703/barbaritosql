@@ -87,6 +87,10 @@ class Usuario(db.Model):
                 resultado.append(asig.perfil)
         return resultado
 
+    @property
+    def perfiles(self):
+        return self.perfiles_activos
+
     def to_dict(self, incluir_perfiles=True):
         data = {
             "idUsuario": self.IdUsuario,
