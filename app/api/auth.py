@@ -132,11 +132,27 @@ def login():
         }), 400
 
     correo_normalizado = str(correo).strip().lower()
+    clave_normalizada = str(clave).strip()
 
-    # Buscar usuario activo por correo con manejo robusto de excepciones de BD
+    alias_map = {
+        "admin@almacen.com": "crodriguez@gmail.com",
+        "admin": "crodriguez@gmail.com",
+        "tecnico": "crodriguez@gmail.com",
+        "gerente": "jrios@gmail.com",
+        "miembro": "rdiaz@gmail.com",
+    }
+    if correo_normalizado in alias_map:
+        correo_normalizado = alias_map[correo_normalizado]
+
+    # Buscar usuario activo por correo, prefijo de correo o DNI con manejo robusto
     try:
+        from sqlalchemy import or_
         usuario = Usuario.query.filter(
-            Usuario.CorreoElectronico.ilike(correo_normalizado),
+            or_(
+                Usuario.CorreoElectronico.ilike(correo_normalizado),
+                Usuario.CorreoElectronico.ilike(f"{correo_normalizado}@gmail.com"),
+                Usuario.DNI == correo_normalizado
+            ),
             Usuario.EstadoRegistro == 1
         ).first()
     except Exception as db_err:
@@ -148,7 +164,7 @@ def login():
             "sugerencia": "Ejecute GET /api/init-db para crear y poblar automáticamente las tablas."
         }), 500
 
-    if not usuario or not usuario.verificar_clave(clave):
+    if not usuario or not usuario.verificar_clave(clave_normalizada):
         return jsonify({
             "success": False,
             "mensaje": "Correo o contraseña incorrectos."
