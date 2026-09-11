@@ -47,7 +47,18 @@ def requiere_rol(*roles_permitidos):
             if perfil_activo_header:
                 try:
                     perfil_activo_id = int(perfil_activo_header)
-                    if perfil_activo_id in ids_activos:
+                    # Si el usuario es Técnico (IdPerfil=1), tiene superpoderes para probar y simular
+                    # cualquiera de los perfiles (1=Técnico, 2=Gerente, 3=Miembro de equipo).
+                    # Al simular Miembro de equipo (3), debe adoptar estrictamente las restricciones del rol 3.
+                    if 1 in ids_activos:
+                        ids_activos = {perfil_activo_id}
+                        if perfil_activo_id == 3:
+                            nombres_activos = {"miembro de equipo", "miembro"}
+                        elif perfil_activo_id == 2:
+                            nombres_activos = {"gerente", "administrador"}
+                        else:
+                            nombres_activos = {"técnico", "tecnico"}
+                    elif perfil_activo_id in ids_activos:
                         ids_activos = {perfil_activo_id}
                         perfil_obj = next((p for p in perfiles_activos if p.IdPerfil == perfil_activo_id), None)
                         if perfil_obj:

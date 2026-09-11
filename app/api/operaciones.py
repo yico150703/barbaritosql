@@ -300,10 +300,25 @@ def ajustar_stock():
 def listar_movimientos():
     asegurar_esquema()
     movimientos = MovimientoInventario.query.order_by(MovimientoInventario.id_movimiento_inventario.desc()).limit(100).all()
+    
+    # Obtener nombres reales de los usuarios registrantes
+    user_ids = {m.usuario_registro for m in movimientos if m.usuario_registro}
+    usuarios_map = {}
+    if user_ids:
+        usuarios = Usuario.query.filter(Usuario.IdUsuario.in_(user_ids)).all()
+        usuarios_map = {u.IdUsuario: u.nombre_completo for u in usuarios}
+
+    resultado = []
+    for m in movimientos:
+        d = m.to_dict()
+        nombre_persona = usuarios_map.get(m.usuario_registro)
+        d["usuarioNombre"] = nombre_persona if nombre_persona else ("Personal de Almacén" if m.usuario_registro else "")
+        resultado.append(d)
+
     return jsonify({
         "success": True,
-        "movimientos": [m.to_dict() for m in movimientos],
-        "total": len(movimientos)
+        "movimientos": resultado,
+        "total": len(resultado)
     }), 200
 
 
@@ -392,7 +407,14 @@ def editar_movimiento(id_movimiento):
     id_auth = get_jwt_identity()
     user_id = int(id_auth) if id_auth else None
     u = Usuario.query.filter_by(IdUsuario=user_id).first() if user_id else None
-    es_admin = any(p.IdPerfil in (1, 2) for p in u.perfiles) if (u and u.perfiles) else False
+
+    # Si se envía cabecera X-Perfil-Activo: 3 (Miembro de equipo), se aplican estrictamente
+    # las restricciones de Miembro de equipo sin privilegios de admin, incluso si el usuario es Técnico.
+    perfil_header = request.headers.get("X-Perfil-Activo")
+    if perfil_header == "3":
+        es_admin = False
+    else:
+        es_admin = any(p.IdPerfil in (1, 2) for p in u.perfiles) if (u and u.perfiles) else False
 
     # REGLA: Si no es admin/gerente, únicamente puede editar los movimientos que él mismo registró
     if not es_admin and mov.usuario_registro and int(mov.usuario_registro) != user_id:
