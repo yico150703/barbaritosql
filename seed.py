@@ -22,6 +22,7 @@ from app.models import (
     Proveedor,
     Usuario,
     UsuarioPerfil,
+    ActividadSistema,
 )
 
 PERFILES_DATA = [
@@ -192,6 +193,13 @@ def poblar_datos(app_instance=None):
 
 def _ejecutar_poblado_interno():
     print("Verificando y sincronizando datos de base de datos...")
+    from sqlalchemy import text
+    try:
+        db.session.execute(text("ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_actual NUMERIC(10, 3) DEFAULT 0;"))
+        db.session.execute(text("UPDATE producto SET stock_actual = ROUND(stock_minimo * 2.5 + 5, 2) WHERE stock_actual IS NULL;"))
+        db.session.commit()
+    except Exception as ex:
+        db.session.rollback()
     db.create_all()
 
     print("Poblando perfiles...")
@@ -340,11 +348,36 @@ def _ejecutar_poblado_interno():
                 id_proveedor=prdata["id_proveedor"],
                 unidad=prdata["unidad"],
                 stock_minimo=prdata["stock_minimo"],
+                stock_actual=prdata["stock_minimo"] * 2.5 + 5,
                 presentacion=1,
                 activo=True
             )
             db.session.add(prod)
+        elif prod.stock_actual is None:
+            prod.stock_actual = prdata["stock_minimo"] * 2.5 + 5
     db.session.commit()
+
+    if ActividadSistema.query.count() == 0:
+        print("Poblando bitácora inicial de actividades...")
+        actividades_iniciales = [
+            ("AJUSTE", "STOCK", "José Ríos (Gerente): Ajustó el stock de 'Aceite Vegetal Premium' [INS-001] a 25.50 Lt. Motivo: Corrección por inventario físico", 2, "José Ríos", "Gerente"),
+            ("MOVIMIENTO", "KARDEX", "Carlos Rodríguez (Técnico): Registró ENTRADA de 50.00 Kg de 'Arroz Superior Extra' [ABA-002] en Almacén Principal", 1, "Carlos Rodríguez", "Técnico"),
+            ("CREAR", "PRODUCTO", "Carlos Rodríguez (Técnico): Agregó nuevo ítem 'Agua Mineral 500ml' [BEB-004] al catálogo maestro", 1, "Carlos Rodríguez", "Técnico"),
+            ("INVENTARIO", "INVENTARIO", "Roberto Díaz (Miembro de equipo): Realizó la toma física periódica de 'Pechuga de Pollo Fresca' (18.50 Kg)", 3, "Roberto Díaz", "Miembro de equipo"),
+            ("SOLICITUD", "SOLICITUD", "José Ríos (Gerente): Emitió requerimiento de insumos bajo la solicitud de compra SOL-20260901001", 2, "José Ríos", "Gerente"),
+        ]
+        for tipo, ent, desc, u_id, u_nom, u_rol in actividades_iniciales:
+            act = ActividadSistema(
+                id_usuario=u_id,
+                usuario_nombre=u_nom,
+                usuario_rol=u_rol,
+                tipo_accion=tipo,
+                entidad=ent,
+                descripcion=desc,
+                fecha_hora=datetime.now()
+            )
+            db.session.add(act)
+        db.session.commit()
 
     # Sincronizar secuencias en PostgreSQL
     if db.engine.dialect.name == "postgresql":

@@ -7,6 +7,7 @@ from ..auth.decorators import requiere_rol
 from ..extensions import db
 from ..models.perfil import Perfil
 from ..models.usuario import Usuario, UsuarioPerfil
+from .operaciones import registrar_actividad
 
 bp = Blueprint("usuarios", __name__)
 
@@ -156,6 +157,7 @@ def crear_usuario():
         )
         db.session.add(asig)
 
+    registrar_actividad("CREAR", "USUARIO", f"Creó al usuario '{nuevo_usuario.nombre_completo}' (DNI: {nuevo_usuario.DNI}, Correo: {nuevo_usuario.CorreoElectronico})", usuario_creador)
     db.session.commit()
 
     return jsonify({
@@ -231,6 +233,7 @@ def actualizar_usuario(id_usuario):
                 )
                 db.session.add(asig)
 
+    registrar_actividad("EDITAR", "USUARIO", f"Actualizó los datos del usuario '{usuario.nombre_completo}' (DNI: {usuario.DNI})", id_auth)
     db.session.commit()
 
     return jsonify({
@@ -256,6 +259,7 @@ def desactivar_usuario(id_usuario):
     usuario.UsuarioModificacion = int(id_auth) if id_auth else None
     usuario.FechaModificacion = date.today()
 
+    registrar_actividad("ELIMINAR", "USUARIO", f"Desactivó la cuenta del usuario '{usuario.nombre_completo}' (DNI: {usuario.DNI})", id_auth)
     db.session.commit()
 
     return jsonify({

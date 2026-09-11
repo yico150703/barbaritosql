@@ -48,6 +48,7 @@ class Producto(db.Model):
     id_proveedor = db.Column(db.Integer, db.ForeignKey("proveedor.id_proveedor"), nullable=True)
     unidad = db.Column(db.String(20), nullable=False)
     stock_minimo = db.Column(db.Numeric(10, 3), default=0)
+    stock_actual = db.Column(db.Numeric(10, 3), nullable=True, default=0)
     presentacion = db.Column(db.Numeric(10, 3), default=1)
     activo = db.Column(db.Boolean, default=True)
 
@@ -55,6 +56,7 @@ class Producto(db.Model):
     proveedor = db.relationship("Proveedor", lazy="joined")
 
     def to_dict(self):
+        s_act = float(self.stock_actual) if self.stock_actual is not None else float(self.stock_minimo or 0) * 2.5 + 5.0
         return {
             "idProducto": self.id_producto,
             "id_producto": self.id_producto,
@@ -67,6 +69,8 @@ class Producto(db.Model):
             "unidad": self.unidad,
             "stockMinimo": float(self.stock_minimo) if self.stock_minimo is not None else 0.0,
             "stock_minimo": float(self.stock_minimo) if self.stock_minimo is not None else 0.0,
+            "stockActual": round(s_act, 2),
+            "stock_actual": round(s_act, 2),
             "presentacion": float(self.presentacion) if self.presentacion is not None else 1.0,
             "activo": self.activo,
         }
@@ -215,3 +219,30 @@ class InventarioCierreDetalle(db.Model):
             "unidad": self.producto.unidad if self.producto else "Und",
             "stockContado": float(self.stock_contado),
         }
+
+
+class ActividadSistema(db.Model):
+    __tablename__ = "actividad_sistema"
+
+    id_actividad = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_usuario = db.Column(db.Integer, nullable=True)
+    usuario_nombre = db.Column(db.String(150), nullable=False, default="Usuario")
+    usuario_rol = db.Column(db.String(100), nullable=False, default="Operativo")
+    tipo_accion = db.Column(db.String(50), nullable=False)  # CREAR, EDITAR, ELIMINAR, AJUSTE, MOVIMIENTO, INVENTARIO, SOLICITUD
+    entidad = db.Column(db.String(50), nullable=False)      # USUARIO, PRODUCTO, STOCK, KARDEX, SOLICITUD, INVENTARIO, MIEMBRO
+    descripcion = db.Column(db.Text, nullable=False)
+    fecha_hora = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    def to_dict(self):
+        return {
+            "idActividad": self.id_actividad,
+            "idUsuario": self.id_usuario,
+            "usuarioNombre": self.usuario_nombre,
+            "usuarioRol": self.usuario_rol,
+            "tipoAccion": self.tipo_accion,
+            "entidad": self.entidad,
+            "descripcion": self.descripcion,
+            "fechaHora": self.fecha_hora.strftime("%Y-%m-%d %H:%M:%S") if self.fecha_hora else "",
+            "fechaFormateada": self.fecha_hora.strftime("%d/%m/%Y %H:%M") if self.fecha_hora else "",
+        }
+

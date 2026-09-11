@@ -8,6 +8,7 @@ from .almacen import (
     OrdenCompraDetalle,
     Producto,
     Proveedor,
+    ActividadSistema,
 )
 from .opcion_menu import OpcionMenu, OpcionMenuPerfil
 from .perfil import Perfil
@@ -28,4 +29,5 @@ __all__ = [
     "OrdenCompraDetalle",
     "InventarioCierre",
     "InventarioCierreDetalle",
+    "ActividadSistema",
 ]
