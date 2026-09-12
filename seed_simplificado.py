@@ -9,14 +9,13 @@ Script para inicializar la base de datos simplificada con exactamente 5 tablas:
 
 import os
 from datetime import datetime
-import bcrypt
+from werkzeug.security import generate_password_hash
 from sqlalchemy import text
 from app import create_app
 from app.extensions import db
 
 def hash_clave(clave_plana: str) -> str:
-    salt = bcrypt.gensalt(12)
-    return bcrypt.hashpw(clave_plana.encode("utf-8"), salt).decode("utf-8")
+    return generate_password_hash(clave_plana)
 
 def aplicar_esquema_y_datos():
     app = create_app()

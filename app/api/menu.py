@@ -10,7 +10,7 @@ bp = Blueprint("menu", __name__)
 
 
 @bp.route("/menu/<int:id_usuario>/<int:id_perfil>", methods=["GET"])
-@jwt_required()
+@jwt_required(optional=True)
 def obtener_menu_perfil(id_usuario, id_perfil):
     """
     Endpoint GET /api/menu/<id_usuario>/<id_perfil>

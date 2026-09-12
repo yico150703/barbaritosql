@@ -9,7 +9,7 @@ bp = Blueprint("opciones_menu", __name__)
 
 
 @bp.route("", methods=["GET"])
-@jwt_required()
+@jwt_required(optional=True)
 def listar_opciones():
     """
     Listar opciones de menú con búsqueda, paginación y filtro de EstadoRegistro = 1.
