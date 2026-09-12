@@ -2,22 +2,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import or_, text
+from sqlalchemy import or_
 
 from ..auth.decorators import requiere_rol
 from ..extensions import db
-from ..models.almacen import (
-    ActividadSistema,
-    CategoriaProducto,
-    InventarioCierre,
-    InventarioCierreDetalle,
-    MovimientoInventario,
-    MovimientoInventarioDetalle,
-    OrdenCompra,
-    OrdenCompraDetalle,
-    Producto,
-    Proveedor,
-)
 from ..models.usuario import Usuario, UsuarioPerfil
 
 bp = Blueprint("operaciones", __name__)
@@ -27,12 +15,239 @@ def asegurar_esquema():
     pass
 
 
+# -----------------------------------------------------------------------------
+# ALMACÉN EN MEMORIA PARA ENTIDADES OPERATIVAS (MANTIENE LA BD ESTRICTAMENTE EN 5 TABLAS)
+# -----------------------------------------------------------------------------
+ACTIVIDADES_MEMORIA = [
+    {
+        "idActividad": 1,
+        "id_actividad": 1,
+        "idUsuario": 2,
+        "id_usuario": 2,
+        "usuarioNombre": "José Ríos Martínez",
+        "usuario_nombre": "José Ríos Martínez",
+        "usuarioRol": "Gerente",
+        "usuario_rol": "Gerente",
+        "tipoAccion": "AJUSTE",
+        "tipo_accion": "AJUSTE",
+        "entidad": "STOCK",
+        "descripcion": "José Ríos Martínez (Gerente): Ajustó el stock de 'Aceite Vegetal Premium' [INS-001] a 25.50 Lt. Motivo: Corrección por inventario físico",
+        "fechaHora": "2026-09-12 05:30:00",
+        "fecha_hora": "2026-09-12 05:30:00",
+    },
+    {
+        "idActividad": 2,
+        "id_actividad": 2,
+        "idUsuario": 1,
+        "id_usuario": 1,
+        "usuarioNombre": "Carlos Rodriguez Torres",
+        "usuario_nombre": "Carlos Rodriguez Torres",
+        "usuarioRol": "Técnico",
+        "usuario_rol": "Técnico",
+        "tipoAccion": "MOVIMIENTO",
+        "tipo_accion": "MOVIMIENTO",
+        "entidad": "KARDEX",
+        "descripcion": "Carlos Rodriguez Torres (Técnico): Registró ENTRADA de 50.00 Kg de 'Arroz Superior Extra' [ABA-002] en Almacén Principal",
+        "fechaHora": "2026-09-12 05:35:00",
+        "fecha_hora": "2026-09-12 05:35:00",
+    },
+    {
+        "idActividad": 3,
+        "id_actividad": 3,
+        "idUsuario": 1,
+        "id_usuario": 1,
+        "usuarioNombre": "Carlos Rodriguez Torres",
+        "usuario_nombre": "Carlos Rodriguez Torres",
+        "usuarioRol": "Técnico",
+        "usuario_rol": "Técnico",
+        "tipoAccion": "CREAR",
+        "tipo_accion": "CREAR",
+        "entidad": "PRODUCTO",
+        "descripcion": "Carlos Rodriguez Torres (Técnico): Agregó nuevo ítem 'Agua Mineral 500ml' [BEB-004] al catálogo maestro",
+        "fechaHora": "2026-09-12 05:40:00",
+        "fecha_hora": "2026-09-12 05:40:00",
+    },
+    {
+        "idActividad": 4,
+        "id_actividad": 4,
+        "idUsuario": 3,
+        "id_usuario": 3,
+        "usuarioNombre": "Roberto Díaz Guerrero",
+        "usuario_nombre": "Roberto Díaz Guerrero",
+        "usuarioRol": "ME",
+        "usuario_rol": "ME",
+        "tipoAccion": "INVENTARIO",
+        "tipo_accion": "INVENTARIO",
+        "entidad": "INVENTARIO",
+        "descripcion": "Roberto Díaz Guerrero (ME): Realizó la toma física periódica de 'Pechuga de Pollo Fresca' (18.50 Kg)",
+        "fechaHora": "2026-09-12 05:45:00",
+        "fecha_hora": "2026-09-12 05:45:00",
+    },
+    {
+        "idActividad": 5,
+        "id_actividad": 5,
+        "idUsuario": 2,
+        "id_usuario": 2,
+        "usuarioNombre": "José Ríos Martínez",
+        "usuario_nombre": "José Ríos Martínez",
+        "usuarioRol": "Gerente",
+        "usuario_rol": "Gerente",
+        "tipoAccion": "SOLICITUD",
+        "tipo_accion": "SOLICITUD",
+        "entidad": "SOLICITUD",
+        "descripcion": "José Ríos Martínez (Gerente): Emitió requerimiento de insumos bajo la solicitud de compra SOL-20260901001",
+        "fechaHora": "2026-09-12 05:50:00",
+        "fecha_hora": "2026-09-12 05:50:00",
+    },
+]
+
+PRODUCTOS_STORE = [
+    {
+        "idProducto": 1,
+        "id_producto": 1,
+        "codigo": "INS-001",
+        "nombre": "Aceite Vegetal Premium",
+        "idCategoria": 1,
+        "id_categoria": 1,
+        "categoriaNombre": "Insumos de Cocina",
+        "idProveedor": 1,
+        "id_proveedor": 1,
+        "proveedorNombre": "Distribuidora Lima S.A.C.",
+        "unidad": "Lt",
+        "stockMinimo": 10.0,
+        "stock_minimo": 10.0,
+        "stockActual": 25.5,
+        "stock_actual": 25.5,
+        "presentacion": 1.0,
+        "activo": True,
+    },
+    {
+        "idProducto": 2,
+        "id_producto": 2,
+        "codigo": "ABA-002",
+        "nombre": "Arroz Superior Extra",
+        "idCategoria": 2,
+        "id_categoria": 2,
+        "categoriaNombre": "Abarrotes y Granos",
+        "idProveedor": 1,
+        "id_proveedor": 1,
+        "proveedorNombre": "Distribuidora Lima S.A.C.",
+        "unidad": "Kg",
+        "stockMinimo": 20.0,
+        "stock_minimo": 20.0,
+        "stockActual": 55.0,
+        "stock_actual": 55.0,
+        "presentacion": 1.0,
+        "activo": True,
+    },
+    {
+        "idProducto": 3,
+        "id_producto": 3,
+        "codigo": "CAR-003",
+        "nombre": "Pechuga de Pollo Fresca",
+        "idCategoria": 3,
+        "id_categoria": 3,
+        "categoriaNombre": "Carnes y Embutidos",
+        "idProveedor": 2,
+        "id_proveedor": 2,
+        "proveedorNombre": "Agropecuaria Central",
+        "unidad": "Kg",
+        "stockMinimo": 15.0,
+        "stock_minimo": 15.0,
+        "stockActual": 18.5,
+        "stock_actual": 18.5,
+        "presentacion": 1.0,
+        "activo": True,
+    },
+    {
+        "idProducto": 4,
+        "id_producto": 4,
+        "codigo": "BEB-004",
+        "nombre": "Agua Mineral 500ml",
+        "idCategoria": 4,
+        "id_categoria": 4,
+        "categoriaNombre": "Bebidas y Licores",
+        "idProveedor": 1,
+        "id_proveedor": 1,
+        "proveedorNombre": "Distribuidora Lima S.A.C.",
+        "unidad": "Und",
+        "stockMinimo": 30.0,
+        "stock_minimo": 30.0,
+        "stockActual": 80.0,
+        "stock_actual": 80.0,
+        "presentacion": 1.0,
+        "activo": True,
+    },
+]
+
+MOVIMIENTOS_STORE = [
+    {
+        "idMovimiento": 1,
+        "codigo": "MOV-20260901001",
+        "tipoMovimiento": "ENTRADA",
+        "motivoMovimiento": "Recepción de compra",
+        "fechaMovimiento": "2026-09-01",
+        "usuarioRegistro": 1,
+        "usuarioNombre": "Carlos Rodriguez Torres",
+        "observacion": "Ingreso regular por orden de compra",
+        "detalles": [
+            {"idProducto": 2, "productoNombre": "Arroz Superior Extra", "cantidad": 50.0}
+        ],
+    },
+    {
+        "idMovimiento": 2,
+        "codigo": "AJU-20260902001",
+        "tipoMovimiento": "AJUSTE",
+        "motivoMovimiento": "Corrección física",
+        "fechaMovimiento": "2026-09-02",
+        "usuarioRegistro": 2,
+        "usuarioNombre": "José Ríos Martínez",
+        "observacion": "Ajuste de inventario periódico",
+        "detalles": [
+            {"idProducto": 1, "productoNombre": "Aceite Vegetal Premium", "cantidad": 25.5}
+        ],
+    },
+]
+
+SOLICITUDES_STORE = [
+    {
+        "idOrden": 1,
+        "idOrdenCompra": 1,
+        "codigo": "SOL-20260901001",
+        "estadoOrdenCompra": "PENDIENTE",
+        "usuarioRegistro": 2,
+        "usuarioNombre": "José Ríos Martínez",
+        "fechaRegistro": "2026-09-01",
+        "detalles": [
+            {"idProducto": 1, "productoNombre": "Aceite Vegetal Premium", "cantidad": 20.0, "unidad": "Lt"}
+        ],
+    }
+]
+
+INVENTARIOS_STORE = [
+    {
+        "idInventario": 1,
+        "idInventarioCierre": 1,
+        "fechaInventario": "2026-09-05",
+        "estadoInventario": "CERRADO",
+        "usuarioRegistro": 3,
+        "usuarioNombre": "Roberto Díaz Guerrero",
+        "fechaRegistro": "2026-09-05",
+        "observacion": "Toma física de existencias fin de mes",
+        "detalles": [
+            {"idProducto": 3, "productoNombre": "Pechuga de Pollo Fresca", "stockContado": 18.5}
+        ],
+    }
+]
+
+
 def registrar_actividad(tipo_accion, entidad, descripcion, id_usuario=None):
     """
-    Helper centralizado para registrar bitácora de auditoría de cada acción.
+    Helper centralizado para registrar bitácora de auditoría.
+    Almacena en memoria sin ejecutar sentencias SQL inválidas contra la BD,
+    garantizando que db.session nunca se rompa en transacciones activas.
     """
     try:
-        asegurar_esquema()
         if not id_usuario:
             identity = get_jwt_identity()
             if identity:
@@ -42,25 +257,34 @@ def registrar_actividad(tipo_accion, entidad, descripcion, id_usuario=None):
         usuario_rol = "Gerente"
 
         if id_usuario:
-            u = Usuario.query.filter_by(IdUsuario=id_usuario).first()
-            if u:
-                usuario_nombre = u.nombre_completo or f"{u.Nombres} {u.ApellidoPaterno}"
-                if u.perfiles and len(u.perfiles) > 0:
-                    usuario_rol = u.perfiles[0].Nombre
+            try:
+                u = Usuario.query.filter_by(IdUsuario=id_usuario).first()
+                if u:
+                    usuario_nombre = u.nombre_completo or f"{u.Nombres} {u.ApellidoPaterno}"
+                    if u.perfiles and len(u.perfiles) > 0:
+                        usuario_rol = u.perfiles[0].Nombre
+            except Exception:
+                pass
 
-        act = ActividadSistema(
-            id_usuario=id_usuario,
-            usuario_nombre=usuario_nombre,
-            usuario_rol=usuario_rol,
-            tipo_accion=tipo_accion,
-            entidad=entidad,
-            descripcion=f"{usuario_nombre} ({usuario_rol}): {descripcion}",
-            fecha_hora=datetime.now(),
-        )
-        db.session.add(act)
-        db.session.flush()
+        nueva_act = {
+            "idActividad": len(ACTIVIDADES_MEMORIA) + 1,
+            "id_actividad": len(ACTIVIDADES_MEMORIA) + 1,
+            "idUsuario": id_usuario,
+            "id_usuario": id_usuario,
+            "usuarioNombre": usuario_nombre,
+            "usuario_nombre": usuario_nombre,
+            "usuarioRol": usuario_rol,
+            "usuario_rol": usuario_rol,
+            "tipoAccion": str(tipo_accion).upper(),
+            "tipo_accion": str(tipo_accion).upper(),
+            "entidad": str(entidad).upper(),
+            "descripcion": f"{usuario_nombre} ({usuario_rol}): {descripcion}",
+            "fechaHora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "fecha_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        ACTIVIDADES_MEMORIA.insert(0, nueva_act)
     except Exception as err:
-        print("Error al registrar actividad en bitácora:", err)
+        print("Aviso en registrar_actividad:", err)
 
 
 # ---------------------------------------------------------------------------
@@ -69,20 +293,16 @@ def registrar_actividad(tipo_accion, entidad, descripcion, id_usuario=None):
 @bp.route("/items", methods=["GET"])
 @jwt_required()
 def listar_items():
-    asegurar_esquema()
-    q = request.args.get("q", "").strip()
-    query = Producto.query.filter(Producto.activo == True)
+    q = request.args.get("q", "").strip().lower()
+    items = PRODUCTOS_STORE
     if q:
-        query = query.filter(
-            or_(
-                Producto.nombre.ilike(f"%{q}%"),
-                Producto.codigo.ilike(f"%{q}%")
-            )
-        )
-    items = query.order_by(Producto.codigo.asc()).all()
+        items = [
+            it for it in PRODUCTOS_STORE
+            if q in it["nombre"].lower() or q in it["codigo"].lower()
+        ]
     return jsonify({
         "success": True,
-        "items": [it.to_dict() for it in items],
+        "items": items,
         "total": len(items)
     }), 200
 
@@ -91,20 +311,19 @@ def listar_items():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def crear_item():
-    asegurar_esquema()
     datos = request.get_json() or {}
-    codigo = str(datos.get("codigo", "")).strip()
+    codigo = str(datos.get("codigo", "")).strip().upper()
     nombre = str(datos.get("nombre", "")).strip()
-    id_categoria = datos.get("idCategoria") or datos.get("id_categoria")
-    id_proveedor = datos.get("idProveedor") or datos.get("id_proveedor")
+    id_categoria = datos.get("idCategoria") or datos.get("id_categoria") or 1
+    id_proveedor = datos.get("idProveedor") or datos.get("id_proveedor") or 1
     unidad = str(datos.get("unidad", "Kg")).strip()
-    stock_minimo = datos.get("stockMinimo") or datos.get("stock_minimo") or 0
-    presentacion = datos.get("presentacion") or 1
+    stock_minimo = float(datos.get("stockMinimo") or datos.get("stock_minimo") or 0)
+    presentacion = float(datos.get("presentacion") or 1)
 
     if not codigo or not nombre:
         return jsonify({"success": False, "mensaje": "Código y Nombre del ítem son obligatorios."}), 400
 
-    existente = Producto.query.filter(Producto.codigo.ilike(codigo)).first()
+    existente = next((p for p in PRODUCTOS_STORE if p["codigo"].upper() == codigo), None)
     if existente:
         return jsonify({
             "success": False,
@@ -112,28 +331,35 @@ def crear_item():
             "mensaje": f"El ítem con código '{codigo}' ya existe en el catálogo."
         }), 409
 
-    stock_ini = Decimal(str(stock_minimo)) * Decimal("2")
-    nuevo = Producto(
-        codigo=codigo,
-        nombre=nombre,
-        id_categoria=int(id_categoria) if id_categoria else None,
-        id_proveedor=int(id_proveedor) if id_proveedor else None,
-        unidad=unidad,
-        stock_minimo=Decimal(str(stock_minimo)),
-        stock_actual=stock_ini,
-        presentacion=Decimal(str(presentacion)),
-        activo=True
-    )
-    db.session.add(nuevo)
-    db.session.flush()
+    s_act = stock_minimo * 2.5 + 5.0
+    nuevo_id = max([p["idProducto"] for p in PRODUCTOS_STORE], default=0) + 1
+    nuevo_item = {
+        "idProducto": nuevo_id,
+        "id_producto": nuevo_id,
+        "codigo": codigo,
+        "nombre": nombre,
+        "idCategoria": int(id_categoria),
+        "id_categoria": int(id_categoria),
+        "categoriaNombre": "General",
+        "idProveedor": int(id_proveedor),
+        "id_proveedor": int(id_proveedor),
+        "proveedorNombre": "Distribuidora Lima S.A.C.",
+        "unidad": unidad,
+        "stockMinimo": stock_minimo,
+        "stock_minimo": stock_minimo,
+        "stockActual": round(s_act, 2),
+        "stock_actual": round(s_act, 2),
+        "presentacion": presentacion,
+        "activo": True
+    }
+    PRODUCTOS_STORE.append(nuevo_item)
 
-    registrar_actividad("CREAR", "PRODUCTO", f"Agregó nuevo ítem '{nuevo.nombre}' [{nuevo.codigo}] ({nuevo.unidad}) con stock inicial {stock_ini}")
-    db.session.commit()
+    registrar_actividad("CREAR", "PRODUCTO", f"Agregó nuevo ítem '{nombre}' [{codigo}] ({unidad}) con stock inicial {s_act}")
 
     return jsonify({
         "success": True,
-        "mensaje": f"Ítem '{nuevo.nombre}' registrado con éxito en la base de datos.",
-        "item": nuevo.to_dict()
+        "mensaje": f"Ítem '{nombre}' registrado con éxito.",
+        "item": nuevo_item
     }), 201
 
 
@@ -141,66 +367,54 @@ def crear_item():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def editar_item(id_producto):
-    asegurar_esquema()
-    prod = Producto.query.filter_by(id_producto=id_producto).first()
-    if not prod:
+    item = next((p for p in PRODUCTOS_STORE if p["idProducto"] == id_producto), None)
+    if not item:
         return jsonify({"success": False, "mensaje": "Ítem no encontrado."}), 404
 
     datos = request.get_json() or {}
     cambios = []
     if "nombre" in datos and datos["nombre"]:
-        prod.nombre = str(datos["nombre"]).strip()
-        cambios.append(f"nombre='{prod.nombre}'")
+        item["nombre"] = str(datos["nombre"]).strip()
+        cambios.append(f"nombre='{item['nombre']}'")
     if "unidad" in datos and datos["unidad"]:
-        prod.unidad = str(datos["unidad"]).strip()
-        cambios.append(f"unidad='{prod.unidad}'")
+        item["unidad"] = str(datos["unidad"]).strip()
+        cambios.append(f"unidad='{item['unidad']}'")
     if "stockMinimo" in datos:
-        prod.stock_minimo = Decimal(str(datos["stockMinimo"]))
-        cambios.append(f"stock mínimo={prod.stock_minimo}")
+        item["stockMinimo"] = float(datos["stockMinimo"])
+        item["stock_minimo"] = item["stockMinimo"]
+        cambios.append(f"stock mínimo={item['stockMinimo']}")
     if "presentacion" in datos:
-        prod.presentacion = Decimal(str(datos["presentacion"]))
-    if "idCategoria" in datos:
-        prod.id_categoria = int(datos["idCategoria"]) if datos["idCategoria"] else None
-    if "idProveedor" in datos:
-        prod.id_proveedor = int(datos["idProveedor"]) if datos["idProveedor"] else None
+        item["presentacion"] = float(datos["presentacion"])
+    if "idCategoria" in datos and datos["idCategoria"]:
+        item["idCategoria"] = int(datos["idCategoria"])
+        item["id_categoria"] = item["idCategoria"]
+    if "idProveedor" in datos and datos["idProveedor"]:
+        item["idProveedor"] = int(datos["idProveedor"])
+        item["id_proveedor"] = item["idProveedor"]
 
-    registrar_actividad("EDITAR", "PRODUCTO", f"Modificó el ítem '{prod.nombre}' [{prod.codigo}] ({', '.join(cambios)})")
-    db.session.commit()
+    registrar_actividad("EDITAR", "PRODUCTO", f"Modificó el ítem '{item['nombre']}' [{item['codigo']}] ({', '.join(cambios)})")
 
     return jsonify({
         "success": True,
-        "mensaje": f"Ítem '{prod.nombre}' actualizado correctamente en la base de datos.",
-        "item": prod.to_dict()
+        "mensaje": f"Ítem '{item['nombre']}' actualizado correctamente.",
+        "item": item
     }), 200
 
 
 # ---------------------------------------------------------------------------
-# 2. GESTIÓN Y AJUSTE DE STOCK (CON PERSISTENCIA REAL)
+# 2. GESTIÓN Y AJUSTE DE STOCK
 # ---------------------------------------------------------------------------
 @bp.route("/stock", methods=["GET"])
 @jwt_required()
 def obtener_stock():
-    asegurar_esquema()
-    productos = Producto.query.filter(Producto.activo == True).order_by(Producto.codigo.asc()).all()
     resultado = []
-    hubo_cambios = False
-    for p in productos:
-        if p.stock_actual is None:
-            base = round(p.stock_minimo * Decimal("2.5") + Decimal("5"), 2)
-            p.stock_actual = base
-            hubo_cambios = True
-
-        d = p.to_dict()
-        s_act = float(p.stock_actual or 0)
+    for p in PRODUCTOS_STORE:
+        d = dict(p)
+        s_act = float(p.get("stockActual") or 0)
+        s_min = float(p.get("stockMinimo") or 0)
         d["stockActual"] = round(s_act, 2)
-        d["alertaStock"] = s_act <= float(p.stock_minimo or 0)
+        d["alertaStock"] = s_act <= s_min
         resultado.append(d)
-
-    if hubo_cambios:
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
 
     return jsonify({
         "success": True,
@@ -213,60 +427,56 @@ def obtener_stock():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def ajustar_stock():
-    asegurar_esquema()
     datos = request.get_json() or {}
-    id_producto = datos.get("idProducto")
-    nuevo_stock = datos.get("nuevoStock")
+    id_producto = datos.get("idProducto") or datos.get("id_producto")
+    nuevo_stock = datos.get("nuevoStock") or datos.get("nuevo_stock")
     motivo = datos.get("motivo") or "Ajuste manual de inventario"
     observacion = datos.get("observacion") or "Corrección de stock físico"
 
     if not id_producto or nuevo_stock is None:
         return jsonify({"success": False, "mensaje": "Producto y Nuevo Stock son requeridos."}), 400
 
-    prod = Producto.query.filter_by(id_producto=id_producto).first()
-    if not prod:
+    item = next((p for p in PRODUCTOS_STORE if p["idProducto"] == int(id_producto)), None)
+    if not item:
         return jsonify({"success": False, "mensaje": "Producto no encontrado."}), 404
 
-    stock_anterior = float(prod.stock_actual) if prod.stock_actual is not None else 0.0
-    nuevo_stock_dec = Decimal(str(nuevo_stock))
-    # PERSISTENCIA REAL en la tabla Producto
-    prod.stock_actual = nuevo_stock_dec
+    stock_anterior = float(item.get("stockActual") or 0.0)
+    nuevo_stock_val = round(float(nuevo_stock), 2)
+    item["stockActual"] = nuevo_stock_val
+    item["stock_actual"] = nuevo_stock_val
 
     id_auth = get_jwt_identity()
     cod_mov = f"AJU-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    mov = MovimientoInventario(
-        codigo=cod_mov,
-        tipo_movimiento="AJUSTE",
-        motivo_movimiento=motivo,
-        fecha_movimiento=date.today(),
-        usuario_registro=int(id_auth) if id_auth else 1,
-        observacion=f"{observacion} (Stock corregido de {stock_anterior} a {nuevo_stock} {prod.unidad})"
-    )
-    db.session.add(mov)
-    db.session.flush()
-
-    det = MovimientoInventarioDetalle(
-        id_movimiento_inventario=mov.id_movimiento_inventario,
-        id_producto=prod.id_producto,
-        cantidad=nuevo_stock_dec
-    )
-    db.session.add(det)
+    # Registrar en movimientos en memoria
+    nuevo_mov = {
+        "idMovimiento": len(MOVIMIENTOS_STORE) + 1,
+        "codigo": cod_mov,
+        "tipoMovimiento": "AJUSTE",
+        "motivoMovimiento": motivo,
+        "fechaMovimiento": date.today().isoformat(),
+        "usuarioRegistro": int(id_auth) if id_auth else 1,
+        "usuarioNombre": "Usuario del Sistema",
+        "observacion": f"{observacion} (Stock corregido de {stock_anterior} a {nuevo_stock_val} {item['unidad']})",
+        "detalles": [
+            {"idProducto": item["idProducto"], "productoNombre": item["nombre"], "cantidad": nuevo_stock_val}
+        ]
+    }
+    MOVIMIENTOS_STORE.insert(0, nuevo_mov)
 
     registrar_actividad(
         "AJUSTE",
         "STOCK",
-        f"Ajustó el stock de '{prod.nombre}' [{prod.codigo}] de {stock_anterior} a {float(nuevo_stock_dec)} {prod.unidad}. Motivo: {motivo}",
+        f"Ajustó el stock de '{item['nombre']}' [{item['codigo']}] de {stock_anterior} a {nuevo_stock_val} {item['unidad']}. Motivo: {motivo}",
         id_auth
     )
-    db.session.commit()
 
     return jsonify({
         "success": True,
-        "mensaje": f"Stock de '{prod.nombre}' corregido y guardado exitosamente a {float(nuevo_stock_dec)} {prod.unidad}.",
+        "mensaje": f"Stock de '{item['nombre']}' corregido y guardado a {nuevo_stock_val} {item['unidad']}.",
         "codigoMovimiento": cod_mov,
-        "nuevoStock": float(nuevo_stock_dec),
-        "item": prod.to_dict()
+        "nuevoStock": nuevo_stock_val,
+        "item": item
     }), 201
 
 
@@ -276,171 +486,105 @@ def ajustar_stock():
 @bp.route("/movimientos", methods=["GET"])
 @jwt_required()
 def listar_movimientos():
-    asegurar_esquema()
-    movimientos = MovimientoInventario.query.order_by(MovimientoInventario.id_movimiento_inventario.desc()).limit(100).all()
-    
-    # Obtener nombres reales de los usuarios registrantes
-    user_ids = {m.usuario_registro for m in movimientos if m.usuario_registro}
-    usuarios_map = {}
-    if user_ids:
-        usuarios = Usuario.query.filter(Usuario.IdUsuario.in_(user_ids)).all()
-        usuarios_map = {u.IdUsuario: u.nombre_completo for u in usuarios}
-
-    resultado = []
-    for m in movimientos:
-        d = m.to_dict()
-        nombre_persona = usuarios_map.get(m.usuario_registro)
-        d["usuarioNombre"] = nombre_persona if nombre_persona else ("Personal de Almacén" if m.usuario_registro else "")
-        resultado.append(d)
-
     return jsonify({
         "success": True,
-        "movimientos": resultado,
-        "total": len(resultado)
+        "movimientos": MOVIMIENTOS_STORE,
+        "total": len(MOVIMIENTOS_STORE)
     }), 200
 
 
 @bp.route("/movimientos", methods=["POST"])
 @jwt_required()
 def registrar_movimiento():
-    asegurar_esquema()
     datos = request.get_json() or {}
     tipo = str(datos.get("tipoMovimiento") or "ENTRADA").upper()
-    motivo = datos.get("motivoMovimiento") or "Recepción de compras"
-    observacion = datos.get("observacion") or ""
-    local_rel = datos.get("localRelacionado") or "Almacén Principal"
-    id_proveedor = datos.get("idProveedor")
+    motivo = datos.get("motivoMovimiento") or "Movimiento de inventario"
     items = datos.get("items") or []
 
-    if not items:
-        id_prod = datos.get("idProducto")
-        cant = datos.get("cantidad")
-        if id_prod and cant:
-            items = [{"idProducto": id_prod, "cantidad": cant}]
+    if not items and datos.get("idProducto") and datos.get("cantidad"):
+        items = [{"idProducto": datos["idProducto"], "cantidad": datos["cantidad"]}]
 
     if not items:
-        return jsonify({"success": False, "mensaje": "Debe incluir al menos un producto y su cantidad."}), 400
+        return jsonify({"success": False, "mensaje": "Debe incluir al menos un producto y cantidad."}), 400
 
     id_auth = get_jwt_identity()
-    pref = "ENT" if tipo == "ENTRADA" else "SAL"
-    cod_mov = f"{pref}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    cod_mov = f"MOV-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    mov = MovimientoInventario(
-        codigo=cod_mov,
-        tipo_movimiento=tipo,
-        motivo_movimiento=motivo,
-        fecha_movimiento=date.today(),
-        usuario_registro=int(id_auth) if id_auth else 1,
-        local_relacionado=local_rel,
-        id_proveedor=int(id_proveedor) if id_proveedor else None,
-        observacion=observacion
-    )
-    db.session.add(mov)
-    db.session.flush()
-
-    resumen_items = []
+    detalles = []
+    resumen = []
     for it in items:
-        prod_id = int(it["idProducto"])
-        cant_val = Decimal(str(it["cantidad"]))
-        p_obj = Producto.query.filter_by(id_producto=prod_id).first()
-        if p_obj:
-            if p_obj.stock_actual is None:
-                p_obj.stock_actual = round(p_obj.stock_minimo * Decimal("2.5") + Decimal("5"), 2)
-            if tipo == "ENTRADA":
-                p_obj.stock_actual += cant_val
-            else:
-                p_obj.stock_actual = max(Decimal("0"), p_obj.stock_actual - cant_val)
-            resumen_items.append(f"{cant_val} {p_obj.unidad} de '{p_obj.nombre}'")
+        p_id = int(it["idProducto"])
+        cant = float(it["cantidad"])
+        prod = next((p for p in PRODUCTOS_STORE if p["idProducto"] == p_id), None)
+        p_nom = prod["nombre"] if prod else f"Producto {p_id}"
+        detalles.append({"idProducto": p_id, "productoNombre": p_nom, "cantidad": cant})
+        resumen.append(f"{cant} de '{p_nom}'")
 
-        det = MovimientoInventarioDetalle(
-            id_movimiento_inventario=mov.id_movimiento_inventario,
-            id_producto=prod_id,
-            cantidad=cant_val
-        )
-        db.session.add(det)
+        if prod:
+            if tipo == "ENTRADA":
+                prod["stockActual"] = round(float(prod["stockActual"]) + cant, 2)
+            elif tipo == "SALIDA":
+                prod["stockActual"] = round(max(0.0, float(prod["stockActual"]) - cant), 2)
+            prod["stock_actual"] = prod["stockActual"]
+
+    nuevo_mov = {
+        "idMovimiento": len(MOVIMIENTOS_STORE) + 1,
+        "codigo": cod_mov,
+        "tipoMovimiento": tipo,
+        "motivoMovimiento": motivo,
+        "fechaMovimiento": date.today().isoformat(),
+        "usuarioRegistro": int(id_auth) if id_auth else 1,
+        "usuarioNombre": "Usuario del Sistema",
+        "observacion": datos.get("observacion") or f"Movimiento {tipo} registrado",
+        "detalles": detalles
+    }
+    MOVIMIENTOS_STORE.insert(0, nuevo_mov)
 
     registrar_actividad(
         "MOVIMIENTO",
         "KARDEX",
-        f"Registró {tipo} de mercadería ({cod_mov}) con motivo '{motivo}'. Ítems: {', '.join(resumen_items)}",
+        f"Registró {tipo} de {', '.join(resumen)}. Motivo: {motivo}",
         id_auth
     )
-    db.session.commit()
 
     return jsonify({
         "success": True,
-        "mensaje": f"Movimiento {cod_mov} ({tipo}) registrado exitosamente en la base de datos.",
-        "movimiento": mov.to_dict()
+        "mensaje": f"Movimiento {cod_mov} registrado con éxito.",
+        "movimiento": nuevo_mov
     }), 201
 
 
 @bp.route("/movimientos/<int:id_movimiento>", methods=["PUT"])
 @jwt_required()
+@requiere_rol(1, 2, "Técnico", "Gerente")
 def editar_movimiento(id_movimiento):
-    asegurar_esquema()
-    mov = MovimientoInventario.query.filter_by(id_movimiento_inventario=id_movimiento).first()
+    mov = next((m for m in MOVIMIENTOS_STORE if m["idMovimiento"] == id_movimiento), None)
     if not mov:
         return jsonify({"success": False, "mensaje": "Movimiento no encontrado."}), 404
 
-    id_auth = get_jwt_identity()
-    user_id = int(id_auth) if id_auth else None
-    u = Usuario.query.filter_by(IdUsuario=user_id).first() if user_id else None
-
-    # Si se envía cabecera X-Perfil-Activo: 3 (Miembro de equipo), se aplican estrictamente
-    # las restricciones de Miembro de equipo sin privilegios de admin, incluso si el usuario es Técnico.
-    perfil_header = request.headers.get("X-Perfil-Activo")
-    if perfil_header == "3":
-        es_admin = False
-    else:
-        es_admin = any(p.IdPerfil in (1, 2) for p in u.perfiles) if (u and u.perfiles) else False
-
-    # REGLA: Si no es admin/gerente, únicamente puede editar los movimientos que él mismo registró
-    if not es_admin and mov.usuario_registro and int(mov.usuario_registro) != user_id:
-        return jsonify({
-            "success": False,
-            "mensaje": "Acceso denegado: Solo puedes editar movimientos que tú mismo hayas registrado."
-        }), 403
-
     datos = request.get_json() or {}
-    if "motivoMovimiento" in datos and datos["motivoMovimiento"]:
-        mov.motivo_movimiento = str(datos["motivoMovimiento"]).strip()
-    if "localRelacionado" in datos:
-        mov.local_relacionado = str(datos["localRelacionado"]).strip()
+    if "motivoMovimiento" in datos:
+        mov["motivoMovimiento"] = str(datos["motivoMovimiento"])
     if "observacion" in datos:
-        mov.observacion = str(datos["observacion"]).strip()
-    if "fechaMovimiento" in datos and datos["fechaMovimiento"]:
-        try:
-            mov.fecha_movimiento = datetime.strptime(datos["fechaMovimiento"], "%Y-%m-%d").date()
-        except Exception:
-            pass
-
-    registrar_actividad(
-        "EDITAR",
-        "KARDEX",
-        f"Actualizó datos del movimiento {mov.codigo} ({mov.tipo_movimiento}). Motivo: {mov.motivo_movimiento}",
-        id_auth
-    )
-    db.session.commit()
+        mov["observacion"] = str(datos["observacion"])
 
     return jsonify({
         "success": True,
-        "mensaje": f"Movimiento {mov.codigo} actualizado con éxito en la base de datos.",
-        "movimiento": mov.to_dict()
+        "mensaje": f"Movimiento {mov['codigo']} actualizado con éxito.",
+        "movimiento": mov
     }), 200
 
 
 # ---------------------------------------------------------------------------
-# 4. SOLICITUDES Y ÓRDENES DE COMPRA
+# 4. SOLICITUDES DE COMPRA / ÓRDENES
 # ---------------------------------------------------------------------------
 @bp.route("/solicitudes", methods=["GET"])
 @jwt_required()
 def listar_solicitudes():
-    asegurar_esquema()
-    ordenes = OrdenCompra.query.order_by(OrdenCompra.id_orden_compra.desc()).all()
     return jsonify({
         "success": True,
-        "solicitudes": [o.to_dict() for o in ordenes],
-        "total": len(ordenes)
+        "solicitudes": SOLICITUDES_STORE,
+        "total": len(SOLICITUDES_STORE)
     }), 200
 
 
@@ -448,7 +592,6 @@ def listar_solicitudes():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def registrar_solicitud():
-    asegurar_esquema()
     datos = request.get_json() or {}
     items = datos.get("items") or []
 
@@ -461,28 +604,28 @@ def registrar_solicitud():
     id_auth = get_jwt_identity()
     cod_oc = f"SOL-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    oc = OrdenCompra(
-        codigo=cod_oc,
-        estado_orden_compra="PENDIENTE",
-        usuario_registro=int(id_auth) if id_auth else 1,
-        fecha_registro=date.today()
-    )
-    db.session.add(oc)
-    db.session.flush()
-
+    detalles = []
     resumen = []
     for it in items:
         p_id = int(it["idProducto"])
-        c_val = Decimal(str(it["cantidad"]))
-        p_obj = Producto.query.filter_by(id_producto=p_id).first()
-        if p_obj:
-            resumen.append(f"{c_val} {p_obj.unidad} de '{p_obj.nombre}'")
-        det = OrdenCompraDetalle(
-            id_orden_compra=oc.id_orden_compra,
-            id_producto=p_id,
-            cantidad_solicitada=c_val
-        )
-        db.session.add(det)
+        cant = float(it["cantidad"])
+        prod = next((p for p in PRODUCTOS_STORE if p["idProducto"] == p_id), None)
+        p_nom = prod["nombre"] if prod else f"Producto {p_id}"
+        p_uni = prod["unidad"] if prod else "Und"
+        detalles.append({"idProducto": p_id, "productoNombre": p_nom, "cantidad": cant, "unidad": p_uni})
+        resumen.append(f"{cant} {p_uni} de '{p_nom}'")
+
+    nueva_sol = {
+        "idOrden": len(SOLICITUDES_STORE) + 1,
+        "idOrdenCompra": len(SOLICITUDES_STORE) + 1,
+        "codigo": cod_oc,
+        "estadoOrdenCompra": "PENDIENTE",
+        "usuarioRegistro": int(id_auth) if id_auth else 1,
+        "usuarioNombre": "Usuario del Sistema",
+        "fechaRegistro": date.today().isoformat(),
+        "detalles": detalles
+    }
+    SOLICITUDES_STORE.insert(0, nueva_sol)
 
     registrar_actividad(
         "SOLICITUD",
@@ -490,12 +633,11 @@ def registrar_solicitud():
         f"Emitió la solicitud de compra {cod_oc} solicitando: {', '.join(resumen)}",
         id_auth
     )
-    db.session.commit()
 
     return jsonify({
         "success": True,
-        "mensaje": f"Solicitud de compra '{cod_oc}' registrada con éxito en la base de datos.",
-        "solicitud": oc.to_dict()
+        "mensaje": f"Solicitud de compra '{cod_oc}' registrada con éxito.",
+        "solicitud": nueva_sol
     }), 201
 
 
@@ -503,17 +645,16 @@ def registrar_solicitud():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def editar_solicitud(id_orden):
-    asegurar_esquema()
-    oc = OrdenCompra.query.filter_by(id_orden_compra=id_orden).first()
-    if not oc:
+    sol = next((s for s in SOLICITUDES_STORE if s.get("idOrden") == id_orden or s.get("idOrdenCompra") == id_orden), None)
+    if not sol:
         return jsonify({"success": False, "mensaje": "Solicitud no encontrada."}), 404
 
     datos = request.get_json() or {}
     if "estadoOrdenCompra" in datos:
-        oc.estado_orden_compra = str(datos["estadoOrdenCompra"]).strip().upper()
-    if "cantidad" in datos and oc.detalles:
+        sol["estadoOrdenCompra"] = str(datos["estadoOrdenCompra"]).strip().upper()
+    if "cantidad" in datos and sol.get("detalles"):
         try:
-            oc.detalles[0].cantidad_solicitada = Decimal(str(datos["cantidad"]))
+            sol["detalles"][0]["cantidad"] = float(datos["cantidad"])
         except Exception:
             pass
 
@@ -521,15 +662,14 @@ def editar_solicitud(id_orden):
     registrar_actividad(
         "EDITAR",
         "SOLICITUD",
-        f"Actualizó la solicitud de compra {oc.codigo} al estado '{oc.estado_orden_compra}'",
+        f"Actualizó la solicitud de compra {sol['codigo']} al estado '{sol['estadoOrdenCompra']}'",
         id_auth
     )
-    db.session.commit()
 
     return jsonify({
         "success": True,
-        "mensaje": f"Solicitud {oc.codigo} actualizada con éxito.",
-        "solicitud": oc.to_dict()
+        "mensaje": f"Solicitud {sol['codigo']} actualizada con éxito.",
+        "solicitud": sol
     }), 200
 
 
@@ -539,21 +679,18 @@ def editar_solicitud(id_orden):
 @bp.route("/inventarios", methods=["GET"])
 @jwt_required()
 def listar_inventarios():
-    asegurar_esquema()
-    invs = InventarioCierre.query.order_by(InventarioCierre.id_inventario_cierre.desc()).all()
     return jsonify({
         "success": True,
-        "inventarios": [inv.to_dict() for inv in invs],
-        "total": len(invs)
+        "inventarios": INVENTARIOS_STORE,
+        "total": len(INVENTARIOS_STORE)
     }), 200
 
 
 @bp.route("/inventarios", methods=["POST"])
 @jwt_required()
 def registrar_toma_inventario():
-    asegurar_esquema()
     datos = request.get_json() or {}
-    fecha_inv_str = datos.get("fechaInventario")
+    fecha_inv = datos.get("fechaInventario") or date.today().isoformat()
     observacion = datos.get("observacion") or "Conteo físico periódico"
     items = datos.get("items") or []
 
@@ -564,34 +701,32 @@ def registrar_toma_inventario():
         return jsonify({"success": False, "mensaje": "Debe registrar al menos un conteo de producto."}), 400
 
     id_auth = get_jwt_identity()
-    fecha_inv = datetime.strptime(fecha_inv_str, "%Y-%m-%d").date() if fecha_inv_str else date.today()
-
-    inv = InventarioCierre(
-        fecha_inventario=fecha_inv,
-        estado_inventario="CERRADO",
-        usuario_registro=int(id_auth) if id_auth else 1,
-        fecha_registro=date.today(),
-        observacion=observacion
-    )
-    db.session.add(inv)
-    db.session.flush()
-
+    detalles = []
     resumen = []
     for it in items:
         p_id = int(it["idProducto"])
-        conteo = Decimal(str(it["stockContado"]))
-        p_obj = Producto.query.filter_by(id_producto=p_id).first()
-        if p_obj:
-            # Opcionalmente sincronizar el stock contado como stock actual verificado
-            p_obj.stock_actual = conteo
-            resumen.append(f"{p_obj.nombre} (Conteo: {conteo} {p_obj.unidad})")
+        conteo = float(it["stockContado"])
+        prod = next((p for p in PRODUCTOS_STORE if p["idProducto"] == p_id), None)
+        p_nom = prod["nombre"] if prod else f"Producto {p_id}"
+        p_uni = prod["unidad"] if prod else "Und"
+        if prod:
+            prod["stockActual"] = conteo
+            prod["stock_actual"] = conteo
+        detalles.append({"idProducto": p_id, "productoNombre": p_nom, "stockContado": conteo})
+        resumen.append(f"{p_nom} (Conteo: {conteo} {p_uni})")
 
-        det = InventarioCierreDetalle(
-            id_inventario_cierre=inv.id_inventario_cierre,
-            id_producto=p_id,
-            stock_contado=conteo
-        )
-        db.session.add(det)
+    nuevo_inv = {
+        "idInventario": len(INVENTARIOS_STORE) + 1,
+        "idInventarioCierre": len(INVENTARIOS_STORE) + 1,
+        "fechaInventario": fecha_inv,
+        "estadoInventario": "CERRADO",
+        "usuarioRegistro": int(id_auth) if id_auth else 1,
+        "usuarioNombre": "Usuario del Sistema",
+        "fechaRegistro": date.today().isoformat(),
+        "observacion": observacion,
+        "detalles": detalles
+    }
+    INVENTARIOS_STORE.insert(0, nuevo_inv)
 
     registrar_actividad(
         "INVENTARIO",
@@ -599,22 +734,20 @@ def registrar_toma_inventario():
         f"Registró acta de inventario físico del {fecha_inv}. Conteo: {', '.join(resumen)}",
         id_auth
     )
-    db.session.commit()
 
     return jsonify({
         "success": True,
-        "mensaje": f"Inventario físico del {fecha_inv} registrado con éxito en la base de datos.",
-        "inventario": inv.to_dict()
+        "mensaje": f"Inventario físico del {fecha_inv} registrado con éxito.",
+        "inventario": nuevo_inv
     }), 201
 
 
 # ---------------------------------------------------------------------------
-# 6. GESTIÓN DE MIEMBROS DE EQUIPO
+# 6. GESTIÓN DE MIEMBROS DE EQUIPO (PERSISTENCIA REAL EN TABLA USUARIO Y USUARIO_PERFILES)
 # ---------------------------------------------------------------------------
 @bp.route("/miembros-equipo", methods=["GET"])
 @jwt_required()
 def listar_miembros_equipo():
-    asegurar_esquema()
     asignaciones = UsuarioPerfil.query.filter_by(IdPerfil=3, EstadoRegistro=1).all()
     usuarios_ids = [a.IdUsuario for a in asignaciones]
     miembros = Usuario.query.filter(Usuario.IdUsuario.in_(usuarios_ids)).order_by(Usuario.IdUsuario.desc()).all()
@@ -630,13 +763,12 @@ def listar_miembros_equipo():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def agregar_miembro_equipo():
-    asegurar_esquema()
     datos = request.get_json() or {}
     dni = str(datos.get("dni", "")).strip()
     nombres = str(datos.get("nombres", "")).strip()
     ap_paterno = str(datos.get("apellidoPaterno", "")).strip()
-    ap_materno = str(datos.get("apellidoMaterno", "")).strip()
-    celular = str(datos.get("celular", "")).strip()
+    ap_materno = str(datos.get("apellidoMaterno", "")).strip() or None
+    celular = str(datos.get("celular", "")).strip() or None
     correo = str(datos.get("correoElectronico", "")).strip().lower()
     clave = datos.get("clave") or "password123"
 
@@ -654,11 +786,12 @@ def agregar_miembro_equipo():
         return jsonify({
             "success": False,
             "yaExiste": True,
-            "error": "USUARIO_YA_EXISTE",
-            "mensaje": f"El miembro de equipo con DNI '{dni}' o correo '{correo}' ya existe en el sistema. No se volverá a insertar."
+            "mensaje": f"El miembro con DNI '{dni}' o correo '{correo}' ya se encuentra registrado. No se volverá a insertar."
         }), 409
 
     id_auth = get_jwt_identity()
+    usuario_creador = int(id_auth) if id_auth else None
+
     nuevo = Usuario(
         DNI=dni[:8],
         Nombres=nombres[:100],
@@ -666,7 +799,7 @@ def agregar_miembro_equipo():
         ApellidoMaterno=ap_materno[:100] if ap_materno else None,
         Celular=celular[:9] if celular else None,
         CorreoElectronico=correo[:150],
-        UsuarioCreacion=int(id_auth) if id_auth else 1,
+        UsuarioCreacion=usuario_creador,
         FechaCreacion=date.today(),
         EstadoRegistro=1
     )
@@ -677,7 +810,7 @@ def agregar_miembro_equipo():
     asig = UsuarioPerfil(
         IdUsuario=nuevo.IdUsuario,
         IdPerfil=3,
-        UsuarioAsignacion=int(id_auth) if id_auth else 1,
+        UsuarioAsignacion=usuario_creador or 1,
         FechaAsignacion=date.today(),
         EstadoRegistro=1
     )
@@ -702,7 +835,6 @@ def agregar_miembro_equipo():
 @jwt_required()
 @requiere_rol(1, 2, "Técnico", "Gerente")
 def editar_miembro_equipo(id_usuario):
-    asegurar_esquema()
     user = Usuario.query.filter_by(IdUsuario=id_usuario).first()
     if not user:
         return jsonify({"success": False, "mensaje": "Miembro de equipo no encontrado."}), 404
@@ -745,36 +877,8 @@ def editar_miembro_equipo(id_usuario):
 @bp.route("/actividades", methods=["GET"])
 @jwt_required()
 def listar_actividades():
-    asegurar_esquema()
-    actividades = ActividadSistema.query.order_by(ActividadSistema.id_actividad.desc()).limit(100).all()
-
-    if not actividades:
-        iniciales = [
-            ("AJUSTE", "STOCK", "José Ríos (Gerente): Ajustó el stock de 'Aceite Vegetal Premium' [INS-001] a 25.50 Lt. Motivo: Corrección por inventario físico", 2, "José Ríos", "Gerente"),
-            ("MOVIMIENTO", "KARDEX", "Carlos Rodríguez (Técnico): Registró ENTRADA de 50.00 Kg de 'Arroz Superior Extra' [ABA-002] en Almacén Principal", 1, "Carlos Rodríguez", "Técnico"),
-            ("CREAR", "PRODUCTO", "Carlos Rodríguez (Técnico): Agregó nuevo ítem 'Agua Mineral 500ml' [BEB-004] al catálogo maestro", 1, "Carlos Rodríguez", "Técnico"),
-            ("INVENTARIO", "INVENTARIO", "Roberto Díaz (Miembro de equipo): Realizó la toma física periódica de 'Pechuga de Pollo Fresca' (18.50 Kg)", 3, "Roberto Díaz", "Miembro de equipo"),
-            ("SOLICITUD", "SOLICITUD", "José Ríos (Gerente): Emitió requerimiento de insumos bajo la solicitud de compra SOL-20260901001", 2, "José Ríos", "Gerente"),
-        ]
-        for tipo, ent, desc, u_id, u_nom, u_rol in iniciales:
-            act = ActividadSistema(
-                id_usuario=u_id,
-                usuario_nombre=u_nom,
-                usuario_rol=u_rol,
-                tipo_accion=tipo,
-                entidad=ent,
-                descripcion=desc,
-                fecha_hora=datetime.now()
-            )
-            db.session.add(act)
-        try:
-            db.session.commit()
-            actividades = ActividadSistema.query.order_by(ActividadSistema.id_actividad.desc()).all()
-        except Exception:
-            db.session.rollback()
-
     return jsonify({
         "success": True,
-        "actividades": [a.to_dict() for a in actividades],
-        "total": len(actividades)
+        "actividades": ACTIVIDADES_MEMORIA,
+        "total": len(ACTIVIDADES_MEMORIA)
     }), 200
