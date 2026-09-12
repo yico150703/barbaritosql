@@ -20,6 +20,14 @@ def listar_opciones():
     page = request.args.get("page", type=int)
     limit = request.args.get("limit", 50, type=int)
 
+    # Si la tabla tiene menos de 30 registros, asegurar el poblado
+    if OpcionMenu.query.count() < 30:
+        try:
+            from seed import poblar_datos
+            poblar_datos()
+        except Exception as seed_err:
+            print("Auto-poblado en listar_opciones:", seed_err)
+
     query = OpcionMenu.query
     if not incluir_inactivos:
         query = query.filter(OpcionMenu.EstadoRegistro == 1)

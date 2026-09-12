@@ -101,6 +101,7 @@ def create_app(config_object=Config):
             from .models.perfil import Perfil
             from .models.usuario import Usuario, UsuarioPerfil
             from .models.opcion_menu import OpcionMenu, OpcionMenuPerfil
+            from seed import poblar_datos
 
             Perfil.__table__.create(db.engine, checkfirst=True)
             Usuario.__table__.create(db.engine, checkfirst=True)
@@ -108,9 +109,26 @@ def create_app(config_object=Config):
             OpcionMenu.__table__.create(db.engine, checkfirst=True)
             OpcionMenuPerfil.__table__.create(db.engine, checkfirst=True)
 
-            if Usuario.query.count() == 0:
-                print("Base de datos sin usuarios. Ejecutando poblar_datos()...")
-                from seed import poblar_datos
+            # Crear vistas de compatibilidad si el motor es PostgreSQL
+            try:
+                with db.engine.connect() as conn:
+                    conn.execute(db.text("""
+                        DO $$
+                        BEGIN
+                            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'OpcionesMenu') AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'opciones_menu') THEN
+                                CREATE OR REPLACE VIEW opciones_menu AS SELECT * FROM "OpcionesMenu";
+                            END IF;
+                            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'OpcionesMenu_Perfiles') AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'opciones_menu_perfiles') THEN
+                                CREATE OR REPLACE VIEW opciones_menu_perfiles AS SELECT * FROM "OpcionesMenu_Perfiles";
+                            END IF;
+                        END $$;
+                    """))
+                    conn.commit()
+            except Exception as v_err:
+                print("Nota sobre vistas de compatibilidad:", v_err)
+
+            if Usuario.query.count() == 0 or OpcionMenu.query.count() < 30:
+                print("Base de datos incompleta. Ejecutando poblar_datos()...")
                 poblar_datos()
         except Exception as init_err:
             print("Aviso al verificar BD al inicio:", init_err)
