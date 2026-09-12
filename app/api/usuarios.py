@@ -184,7 +184,9 @@ def actualizar_usuario(id_usuario):
     correo = datos.get("correoElectronico") or datos.get("correo") or datos.get("CorreoElectronico")
     clave = datos.get("clave") or datos.get("password") or datos.get("Clave")
     perfiles_ids = datos.get("perfiles_ids") or datos.get("perfilesIds")
-    estado = datos.get("estadoRegistro") or datos.get("estado_registro")
+    estado = datos.get("estadoRegistro")
+    if estado is None:
+        estado = datos.get("estado_registro")
 
     # Validar correo único en otros usuarios
     if correo and str(correo).strip().lower() != usuario.CorreoElectronico.lower():
