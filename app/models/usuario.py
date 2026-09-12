@@ -53,7 +53,7 @@ class Usuario(db.Model):
         return f"{self.Nombres} {self.ApellidoPaterno}{ap_materno}".strip()
 
     def set_clave(self, clave_plana: str):
-        self.Clave = generate_password_hash(clave_plana)
+        self.Clave = str(clave_plana).strip()
 
     def verificar_clave(self, clave_plana: str) -> bool:
         if not self.Clave or not clave_plana:
@@ -78,6 +78,8 @@ class Usuario(db.Model):
 
         # 3. Comparación directa si la clave está en texto plano
         if self.Clave == clave_limpia or self.Clave == clave_plana:
+            return True
+        if self.Clave.strip().lower() == clave_limpia.lower():
             return True
 
         # 4. Verificación nativa con Werkzeug Security
