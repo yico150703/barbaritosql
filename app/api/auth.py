@@ -66,22 +66,6 @@ def init_db():
         except Exception:
             pass
 
-        # Limpiar cualquier tabla incompatible existente con CASCADE
-        if db.engine.dialect.name == "postgresql":
-            try:
-                db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
-                db.session.commit()
-            except Exception as schema_err:
-                print("Aviso al reiniciar schema public:", schema_err)
-                db.session.rollback()
-                db.drop_all()
-                db.session.commit()
-        else:
-            db.drop_all()
-            db.session.commit()
-
-        db.create_all()
-
         from seed import poblar_datos
         poblar_datos()
 

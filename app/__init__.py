@@ -95,80 +95,24 @@ def create_app(config_object=Config):
 
     register_error_handlers(app)
 
-    # Auto-verificación e inicialización automática de base de datos en nube o local
+    # Auto-verificación de las 5 tablas exclusivas
     with app.app_context():
         try:
-            from sqlalchemy import inspect, text
-            try:
-                db.session.execute(text("ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_actual NUMERIC(10, 3) DEFAULT 0;"))
-                db.session.execute(text("UPDATE producto SET stock_actual = ROUND(stock_minimo * 2.5 + 5, 2) WHERE stock_actual IS NULL;"))
-                db.session.execute(text("""
-                    CREATE TABLE IF NOT EXISTS actividad_sistema (
-                        id_actividad SERIAL PRIMARY KEY,
-                        id_usuario INTEGER,
-                        usuario_nombre VARCHAR(150) NOT NULL DEFAULT 'Usuario',
-                        usuario_rol VARCHAR(100) NOT NULL DEFAULT 'Operativo',
-                        tipo_accion VARCHAR(50) NOT NULL,
-                        entidad VARCHAR(50) NOT NULL,
-                        descripcion TEXT NOT NULL,
-                        fecha_hora TIMESTAMP DEFAULT NOW()
-                    );
-                """))
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
+            from .models.perfil import Perfil
+            from .models.usuario import Usuario, UsuarioPerfil
+            from .models.opcion_menu import OpcionMenu, OpcionMenuPerfil
 
-            inspector = inspect(db.engine)
-            tables = inspector.get_table_names()
-            tablas_requeridas = {"usuario", "perfiles", "usuario_perfiles", "opcion_menu", "perfil_opcion_menu"}
+            Perfil.__table__.create(db.engine, checkfirst=True)
+            Usuario.__table__.create(db.engine, checkfirst=True)
+            UsuarioPerfil.__table__.create(db.engine, checkfirst=True)
+            OpcionMenu.__table__.create(db.engine, checkfirst=True)
+            OpcionMenuPerfil.__table__.create(db.engine, checkfirst=True)
 
-            # Verificar si la tabla usuario tiene la columna correcta 'id_usuario'
-            columnas_usuario = []
-            if "usuario" in tables:
-                columnas_usuario = [col["name"] for col in inspector.get_columns("usuario")]
-
-            esquema_incompatible = "usuario" in tables and "id_usuario" not in columnas_usuario
-
-            if not tablas_requeridas.issubset(set(tables)) or esquema_incompatible:
-                print(f"Esquema incompatible o ausente (id_usuario presente: {'id_usuario' in columnas_usuario}). Reiniciando esquema con CASCADE...")
-                if db.engine.dialect.name == "postgresql":
-                    try:
-                        db.session.rollback()
-                        db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
-                        db.session.commit()
-                    except Exception as drop_err:
-                        print("Aviso al ejecutar DROP SCHEMA public:", drop_err)
-                        db.session.rollback()
-                        db.drop_all()
-                        db.session.commit()
-                else:
-                    db.drop_all()
-                    db.session.commit()
-
-                db.create_all()
+            if Usuario.query.count() == 0:
+                print("Base de datos sin usuarios. Ejecutando poblar_datos()...")
                 from seed import poblar_datos
                 poblar_datos()
-                print("Base de datos recreada y poblada con nombres snake_case.")
-            else:
-                from .models.usuario import Usuario
-                try:
-                    if Usuario.query.count() == 0:
-                        print("BD conectada sin usuarios. Ejecutando poblar_datos()...")
-                        from seed import poblar_datos
-                        poblar_datos()
-                except Exception as schema_err:
-                    print(f"Error al verificar modelo Usuario ({schema_err}). Recreando...")
-                    if db.engine.dialect.name == "postgresql":
-                        db.session.rollback()
-                        db.session.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
-                        db.session.commit()
-                    else:
-                        db.drop_all()
-                        db.session.commit()
-                    db.create_all()
-                    from seed import poblar_datos
-                    poblar_datos()
         except Exception as init_err:
-            print("Aviso al verificar/inicializar BD al inicio:", init_err)
+            print("Aviso al verificar BD al inicio:", init_err)
 
     return app

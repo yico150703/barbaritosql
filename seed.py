@@ -1,30 +1,29 @@
 """
 Script de inicialización y carga de semillas (Seed) para Sistema de Gestión de Almacén.
-Carga los roles, usuarios con contraseñas hasheadas y el árbol jerárquico de menús por rol.
+Configurado para el esquema simplificado de 5 tablas:
+1. perfiles
+2. usuario
+3. usuario_perfiles
+4. opcion_menu (y opciones_menu / OpcionesMenu)
+5. perfil_opcion_menu (y opcionesmenu_perfiles / OpcionesMenu_Perfiles)
 """
 
 from datetime import datetime
 from werkzeug.security import generate_password_hash
+from sqlalchemy import text
 
 from app.extensions import db
 from app.models import (
-    CategoriaProducto,
-    InventarioCierre,
-    InventarioCierreDetalle,
-    MovimientoInventario,
-    MovimientoInventarioDetalle,
-    OpcionMenu,
-    OpcionMenuPerfil,
-    OrdenCompra,
-    OrdenCompraDetalle,
     Perfil,
-    Producto,
-    Proveedor,
     Usuario,
     UsuarioPerfil,
-    ActividadSistema,
+    OpcionMenu,
+    OpcionMenuPerfil,
 )
 
+# -----------------------------------------------------------------------------
+# 1. PERFILES (Roles)
+# -----------------------------------------------------------------------------
 PERFILES_DATA = [
     {
         "IdPerfil": 1,
@@ -38,158 +37,148 @@ PERFILES_DATA = [
     },
     {
         "IdPerfil": 3,
-        "Nombre": "Miembro de equipo",
+        "Nombre": "ME",
         "Descripcion": "Usuario menor que podrá recepcionar y verificar el inventario",
     },
 ]
 
-# Clave por defecto para todos los usuarios de prueba: password123
-PASSWORD_DEFAULT = "password123"
-
+# -----------------------------------------------------------------------------
+# 2. USUARIOS
+# -----------------------------------------------------------------------------
 USUARIOS_DATA = [
     {
         "IdUsuario": 1,
-        "DNI": 90999999,
+        "DNI": "90999999",
         "Nombres": "Carlos",
         "ApellidoPaterno": "Rodriguez",
         "ApellidoMaterno": "Torres",
-        "Celular": 987654321,
+        "Celular": "987654321",
         "CorreoElectronico": "crodriguez@gmail.com",
         "Clave": "Tec123*",
         "UsuarioCreacion": None,
         "FechaCreacion": datetime(2026, 8, 28, 9, 0, 0),
-        "perfiles": [1],  # Técnico (acceso general a todos los paneles)
+        "perfiles": [1, 2, 3],  # Foto 1: asignado a 1, 2 y 3
     },
     {
         "IdUsuario": 2,
-        "DNI": 56879826,
+        "DNI": "56879826",
         "Nombres": "José",
         "ApellidoPaterno": "Ríos",
         "ApellidoMaterno": "Martínez",
-        "Celular": 923876122,
+        "Celular": "923876122",
         "CorreoElectronico": "jrios@gmail.com",
         "Clave": "Ger123*",
         "UsuarioCreacion": 1,
         "FechaCreacion": datetime(2026, 8, 28, 9, 10, 0),
-        "perfiles": [2],  # Gerente (acceso directo)
+        "perfiles": [2],  # Foto 1: asignado a Gerente (2)
     },
     {
         "IdUsuario": 3,
-        "DNI": 90157845,
+        "DNI": "90157845",
         "Nombres": "Roberto",
         "ApellidoPaterno": "Díaz",
         "ApellidoMaterno": "Guerrero",
-        "Celular": 987456100,
+        "Celular": "987456100",
         "CorreoElectronico": "rdiaz@gmail.com",
         "Clave": "Equ123*",
         "UsuarioCreacion": 1,
         "FechaCreacion": datetime(2026, 8, 28, 9, 20, 0),
-        "perfiles": [3],  # Miembro de equipo (acceso directo)
+        "perfiles": [3],  # Foto 1: asignado a ME (3)
     },
 ]
 
-# Definición de las Opciones de Menú (sincronizadas con la navegación por paneles)
+# -----------------------------------------------------------------------------
+# 3. OPCIONES DE MENÚ (Fotos 4 y 5 - 30 filas exactas)
+# -----------------------------------------------------------------------------
 OPCIONES_DATA = [
-    (1, "Inicio", "/home", "Inicio del sistema", None),
-    (2, "Panel técnico", "/home/panel-tecnico", "Módulo técnico del sistema", 1),
-    (3, "Panel gerencial", "/home/panel-gerencial", "Vista ejecutiva general", 1),
-    (4, "Panel de miembro de equipo", "/home/panel-miembro-equipo", "Acceso operativo", 1),
-    (5, "Gestión de usuarios", "/home/usuarios", "Mantenimiento de cuentas de usuario", None),
-    (6, "Editar usuario", "/home/usuarios/editar", "Formulario de edición de usuario", 5),
-    (7, "Seguimiento de actividades", "/home/actividades", "Seguimiento de actividades y bitácora", None),
-    (8, "Gestión de stock", "/home/stock", "Consulta de existencias e inventario", None),
-    (9, "Editar stock", "/home/stock/editar", "Ajuste y modificación de existencias", 8),
-    (10, "Gestión de ítems", "/home/items", "Catálogo de productos y artículos", None),
-    (11, "Agregar ítem", "/home/items/agregar", "Registro de nuevos artículos", 10),
-    (12, "Editar ítem", "/home/items/editar", "Modificación de catálogo de ítems", 10),
-    (13, "Reportes de inventario", "/home/reportes", "Generación de métricas y reportes ejecutivos", None),
-    (14, "Entradas y salidas", "/home/movimientos", "Kardex de entradas y salidas de almacén", None),
-    (15, "Registrar movimiento", "/home/movimientos/registrar", "Formulario de registro de movimientos", 14),
-    (16, "Editar movimiento", "/home/movimientos/editar", "Corrección de transacciones de almacén", 14),
-    (17, "Gestión de miembros de equipo", "/home/miembros-equipo", "Administración del personal operativo", None),
-    (18, "Agregar miembro de equipo", "/home/miembros-equipo/agregar", "Alta de nuevo personal", 17),
-    (19, "Editar miembro de equipo", "/home/miembros-equipo/editar", "Edición de fichas del personal", 17),
-    (20, "Solicitudes de compra", "/home/solicitudes", "Monitoreo de solicitudes y compras", None),
-    (21, "Registrar solicitud", "/home/solicitudes/registrar", "Registro de solicitud de compra", 20),
-    (22, "Detalle de solicitud", "/home/solicitudes/detalle", "Visualización de solicitudes de compra", 20),
-    (23, "Editar solicitud", "/home/solicitudes/editar", "Modificación de solicitudes de compra", 20),
-    (24, "Realizar inventario", "/home/inventario-realizar", "Toma física de inventario cíclico", None),
-    (25, "Órdenes de compra", "/home/ordenes-compra", "Emisión de órdenes de aprovisionamiento", None),
-    (26, "Detalle de orden de compra", "/home/ordenes-compra/detalle", "Detalle de orden de compra", 25),
-    (27, "Mantenimiento de Perfiles", "/home/perfiles", "Gestión de roles y perfiles", 2),
-    (28, "Mantenimiento de Opciones de Menú", "/home/opciones-menu", "Gestión jerárquica de menús", 2),
+    (1, "Inicio", "/home", "Página principal del sistema", None),
+    (2, "Panel técnico", "/home/panel-tecnico", "Panel principal del perfil técnico", 1),
+    (3, "Panel gerencial", "/home/panel-gerencial", "Panel principal del perfil gerente", 1),
+    (4, "Panel de miembro de equipo", "/home/panel-miembro-equipo", "Panel principal del perfil miembro de equipo", 1),
+    (5, "Mantenimiento de perfiles", "/home/perfiles", "Permite consultar de roles y privilegios de acceso al sistema (Tabla Perfiles).", None),
+    (6, "Editar Perfiles", "/home/perfiles/editar", "Permite la actualización de nombres de perfiles, descripciones y control de estado de registro.", 5),
+    (7, "Mantenimiento de Opciones de Menú", "/home/opciones-menu", "Permite visualizar la estructuración jerárquica de menús (Tabla OpcionesMenu) y accesibilidad por rol.", None),
+    (8, "Editar Opciones de Menú", "/home/opciones-menu/editar", "Permite la actualización de títulos de menú, rutas de navegación, orden y estructura jerárquica.", 7),
+    (9, "Gestión de usuarios", "/home/usuarios", "Permite consultar y administrar los usuarios", None),
+    (10, "Editar usuario", "/home/usuarios/editar", "Permite modificar la información y el perfil de un usuario", 9),
+    (11, "Seguimiento de actividades", "/home/actividades", "Permite consultar las actividades propias y las realizadas por el equipo", None),
+    (12, "Gestión de stock", "/home/stock", "Permite consultar las existencias actuales de los items", None),
+    (13, "Editar stock", "/home/stock/editar", "Permite corregir el stock cuando se detecte un error", 12),
+    (14, "Gestión de ítems", "/home/items", "Permite consultar y administrar los items del inventario", None),
+    (15, "Agregar item", "/home/items/agregar", "Permite registrar un nuevo item", 14),
+    (16, "Editar item", "/home/items/editar", "Permite modificar la información de un item", 14),
+    (17, "Reportes de inventario", "/home/reportes", "Permite generar reportes por rango de fechas", None),
+    (18, "Entradas y salidas", "/home/movimientos", "Permite consultar los movimientos del inventario", None),
+    (19, "Registrar movimiento", "/home/movimientos/registrar", "Permite registrar entradas, salidas, préstamos, devoluciones o desechos", 18),
+    (20, "Editar movimiento", "/home/movimientos/editar", "Permite corregir la información de un movimiento", 18),
+    (21, "Gestión de miembros de equipo", "/home/miembros-equipo", "Permite consultar y administrar los miembros del equipo", None),
+    (22, "Agregar miembro de equipo", "/home/miembros-equipo/agregar", "Permite registrar un nuevo miembro de equipo", 21),
+    (23, "Editar miembro de equipo", "/home/miembros-equipo/editar", "Permite modificar o desactivar un miembro de equipo", 21),
+    (24, "Solicitudes de compra", "/home/solicitudes", "Permite consultar el estado de las solicitudes", None),
+    (25, "Registrar solicitud", "/home/solicitudes/registrar", "Permite generar una nueva solicitud de compra", 24),
+    (26, "Detalle de solicitud", "/home/solicitudes/detalle", "Permite consultar los productos, cantidades y estado de una solicitud", 24),
+    (27, "Editar solicitud", "/home/solicitudes/editar", "Permite modificar una solicitud pendiente", 24),
+    (28, "Realizar inventario", "/home/inventario-realizar", "Permite efectuar el conteo y registrar el inventario por fecha", None),
+    (29, "Órdenes de compra", "/home/ordenes-compra", "Permite consultar y administrar las órdenes de compra", None),
+    (30, "Detalle de orden de compra", "/home/ordenes-compra/detalle", "Permite consultar los productos y cantidades de una orden de compra", 29),
 ]
 
+# -----------------------------------------------------------------------------
+# 4. ASIGNACIONES OPCIONES-PERFIL (Fotos 2 y 3 - 43 filas exactas)
+# (IdOpcionMenu, IdPerfil, Orden)
+# -----------------------------------------------------------------------------
 ASIGNACIONES_DATA = [
-    # TÉCNICO (1)
-    (1, 1, 1),
-    (2, 1, 2),
-    (27, 1, 1),
-    (28, 1, 2),
-    (3, 1, 3),
-    (4, 1, 4),
-
-    # GERENTE (2)
-    (1, 2, 1),
-    (5, 2, 2),
-    (6, 2, 1),
-    (7, 2, 3),
-    (8, 2, 4),
-    (9, 2, 1),
-    (10, 2, 5),
-    (11, 2, 1),
-    (12, 2, 2),
-    (13, 2, 6),
-    (14, 2, 7),
-    (15, 2, 1),
-    (16, 2, 2),
-    (17, 2, 8),
-    (18, 2, 1),
-    (19, 2, 2),
-    (20, 2, 9),
-    (21, 2, 1),
-    (22, 2, 2),
-    (23, 2, 3),
-    (24, 2, 10),
-    (25, 2, 11),
-    (26, 2, 1),
-
-    # MIEMBRO DE EQUIPO (3)
-    (1, 3, 1),
-    (8, 3, 2),
-    (14, 3, 3),
-    (15, 3, 1),
-    (16, 3, 2),
-    (20, 3, 4),
-    (22, 3, 1),
-    (24, 3, 5),
-]
-
-CATEGORIAS_DATA = [
-    {"id_categoria": 1, "nombre": "Insumos de Cocina", "prefijo": "INS"},
-    {"id_categoria": 2, "nombre": "Abarrotes y Granos", "prefijo": "ABA"},
-    {"id_categoria": 3, "nombre": "Carnes y Embutidos", "prefijo": "CAR"},
-    {"id_categoria": 4, "nombre": "Bebidas y Licores", "prefijo": "BEB"},
-]
-
-PROVEEDORES_DATA = [
-    {"id_proveedor": 1, "nombre": "Distribuidora Lima S.A.C."},
-    {"id_proveedor": 2, "nombre": "Agropecuaria Central"},
-]
-
-PRODUCTOS_DATA = [
-    {"id_producto": 1, "codigo": "INS-001", "nombre": "Aceite Vegetal Premium", "id_categoria": 1, "id_proveedor": 1, "unidad": "Lt", "stock_minimo": 10.0},
-    {"id_producto": 2, "codigo": "ABA-002", "nombre": "Arroz Superior Extra", "id_categoria": 2, "id_proveedor": 1, "unidad": "Kg", "stock_minimo": 20.0},
-    {"id_producto": 3, "codigo": "CAR-003", "nombre": "Pechuga de Pollo Fresca", "id_categoria": 3, "id_proveedor": 2, "unidad": "Kg", "stock_minimo": 15.0},
-    {"id_producto": 4, "codigo": "BEB-004", "nombre": "Agua Mineral 500ml", "id_categoria": 4, "id_proveedor": 1, "unidad": "Und", "stock_minimo": 30.0},
+    # Foto 2
+    (1, 1, 1),   # Inicio - Tecnico
+    (1, 2, 1),   # Inicio - Gerente
+    (1, 3, 1),   # Inicio - ME
+    (2, 1, 2),   # Panel técnico - Tecnico
+    (3, 1, 2),   # Panel gerencial - Tecnico
+    (4, 1, 2),   # Panel de miembro de equipo - Tecnico
+    (5, 1, 3),   # Mantenimiento de perfiles - Tecnico
+    (7, 1, 3),   # Mantenimiento de Opciones de Menú - Tecnico
+    (9, 1, 3),   # Gestión de usuarios - Tecnico
+    (9, 2, 2),   # Gestión de usuarios - Gerente
+    (11, 2, 2),  # Seguimiento de actividades - Gerente
+    (12, 2, 2),  # Gestión de stock - Gerente
+    (12, 3, 2),  # Gestión de stock - ME
+    (14, 2, 2),  # Gestión de ítems - Gerente
+    (17, 2, 2),  # Reportes de inventario - Gerente
+    (18, 2, 2),  # Entradas y salidas - Gerente
+    (18, 3, 2),  # Entradas y salidas - ME
+    (21, 2, 2),  # Gestión de miembros de equipo - Gerente
+    (24, 2, 2),  # Solicitudes de compra - Gerente
+    # Foto 3
+    (24, 3, 2),  # Solicitudes de compra - ME
+    (28, 2, 2),  # Realizar inventario - Gerente
+    (28, 3, 2),  # Realizar inventario - ME
+    (29, 2, 2),  # Órdenes de compra - Gerente
+    (6, 1, 4),   # Editar Perfiles - Tecnico
+    (8, 1, 4),   # Editar Opciones de Menú - Tecnico
+    (6, 2, 3),   # Editar Perfiles - Gerente
+    (8, 2, 3),   # Editar Opciones de Menú - Gerente
+    (10, 1, 4),  # Editar usuario - Tecnico
+    (10, 2, 3),  # Editar usuario - Gerente
+    (13, 2, 3),  # Editar stock - Gerente
+    (15, 2, 3),  # Agregar item - Gerente
+    (16, 2, 3),  # Editar item - Gerente
+    (19, 2, 3),  # Registrar movimiento - Gerente
+    (19, 3, 3),  # Registrar movimiento - ME
+    (20, 2, 3),  # Editar movimiento - Gerente
+    (20, 3, 3),  # Editar movimiento - ME
+    (22, 2, 3),  # Agregar miembro de equipo - Gerente
+    (23, 2, 3),  # Editar miembro de equipo - Gerente
+    (25, 2, 3),  # Registrar solicitud - Gerente
+    (26, 2, 3),  # Detalle de solicitud - Gerente
+    (26, 3, 3),  # Detalle de solicitud - ME
+    (27, 2, 3),  # Editar solicitud - Gerente
+    (30, 2, 3),  # Detalle de orden de compra - Gerente
 ]
 
 
 def poblar_datos(app_instance=None):
     """
-    Función idempotente para poblar perfiles, usuarios de prueba,
-    menús del sistema, categorías y productos iniciales.
-    Garantiza el contexto de la aplicación automáticamente.
+    Pobla perfiles, usuarios y menús con la estructura exacta de 5 tablas.
     """
     from flask import has_app_context
     if not has_app_context():
@@ -203,16 +192,14 @@ def poblar_datos(app_instance=None):
 
 
 def _ejecutar_poblado_interno():
-    print("Verificando y sincronizando datos de base de datos...")
-    from sqlalchemy import text
-    try:
-        db.session.execute(text("ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_actual NUMERIC(10, 3) DEFAULT 0;"))
-        db.session.execute(text("UPDATE producto SET stock_actual = ROUND(stock_minimo * 2.5 + 5, 2) WHERE stock_actual IS NULL;"))
-        db.session.commit()
-    except Exception as ex:
-        db.session.rollback()
-    db.create_all()
+    print("Sincronizando exactamente 5 tablas principales...")
+    Perfil.__table__.create(db.engine, checkfirst=True)
+    Usuario.__table__.create(db.engine, checkfirst=True)
+    UsuarioPerfil.__table__.create(db.engine, checkfirst=True)
+    OpcionMenu.__table__.create(db.engine, checkfirst=True)
+    OpcionMenuPerfil.__table__.create(db.engine, checkfirst=True)
 
+    # 1. Perfiles
     print("Poblando perfiles...")
     for pdata in PERFILES_DATA:
         perfil = Perfil.query.filter_by(IdPerfil=pdata["IdPerfil"]).first()
@@ -230,6 +217,7 @@ def _ejecutar_poblado_interno():
             perfil.EstadoRegistro = 1
     db.session.commit()
 
+    # 2. Usuarios
     print("Poblando usuarios...")
     for udata in USUARIOS_DATA:
         usuario = Usuario.query.filter(
@@ -266,7 +254,7 @@ def _ejecutar_poblado_interno():
 
         db.session.commit()
 
-        # Asignar perfiles
+        # 3. Usuario_Perfiles (Foto 1)
         for pid in udata["perfiles"]:
             asig = UsuarioPerfil.query.filter_by(
                 IdUsuario=usuario.IdUsuario,
@@ -276,7 +264,8 @@ def _ejecutar_poblado_interno():
                 asig = UsuarioPerfil(
                     IdUsuario=usuario.IdUsuario,
                     IdPerfil=pid,
-                    FechaAsignacion=datetime.now(),
+                    UsuarioAsignacion=1,
+                    FechaAsignacion=datetime(2026, 8, 28, 9, 20, 0),
                     EstadoRegistro=1
                 )
                 db.session.add(asig)
@@ -284,6 +273,7 @@ def _ejecutar_poblado_interno():
                 asig.EstadoRegistro = 1
         db.session.commit()
 
+    # 4. Opciones de Menú (Fotos 4 y 5)
     print("Poblando opciones de menú...")
     for id_op, nom, url, desc, padre in OPCIONES_DATA:
         opcion = OpcionMenu.query.filter_by(IdOpcionMenu=id_op).first()
@@ -305,6 +295,7 @@ def _ejecutar_poblado_interno():
             opcion.EstadoRegistro = 1
     db.session.commit()
 
+    # 5. OpcionesMenu_Perfiles (Fotos 2 y 3 - 43 asignaciones)
     print("Poblando asignaciones de menú por rol...")
     for id_op, id_per, orden in ASIGNACIONES_DATA:
         rel = OpcionMenuPerfil.query.filter_by(
@@ -324,105 +315,11 @@ def _ejecutar_poblado_interno():
             rel.EstadoRegistro = 1
     db.session.commit()
 
-    print("Poblando categorías iniciales...")
-    for cdata in CATEGORIAS_DATA:
-        cat = CategoriaProducto.query.filter_by(id_categoria=cdata["id_categoria"]).first()
-        if not cat:
-            cat = CategoriaProducto(
-                id_categoria=cdata["id_categoria"],
-                nombre=cdata["nombre"],
-                prefijo=cdata["prefijo"],
-                activo=True
-            )
-            db.session.add(cat)
-    db.session.commit()
-
-    print("Poblando proveedores iniciales...")
-    for pdata in PROVEEDORES_DATA:
-        prov = Proveedor.query.filter_by(id_proveedor=pdata["id_proveedor"]).first()
-        if not prov:
-            prov = Proveedor(
-                id_proveedor=pdata["id_proveedor"],
-                nombre=pdata["nombre"],
-                activo=True
-            )
-            db.session.add(prov)
-    db.session.commit()
-
-    print("Poblando productos iniciales de catálogo...")
-    for prdata in PRODUCTOS_DATA:
-        prod = Producto.query.filter_by(id_producto=prdata["id_producto"]).first()
-        if not prod:
-            prod = Producto(
-                id_producto=prdata["id_producto"],
-                codigo=prdata["codigo"],
-                nombre=prdata["nombre"],
-                id_categoria=prdata["id_categoria"],
-                id_proveedor=prdata["id_proveedor"],
-                unidad=prdata["unidad"],
-                stock_minimo=prdata["stock_minimo"],
-                stock_actual=prdata["stock_minimo"] * 2.5 + 5,
-                presentacion=1,
-                activo=True
-            )
-            db.session.add(prod)
-        elif prod.stock_actual is None:
-            prod.stock_actual = prdata["stock_minimo"] * 2.5 + 5
-    db.session.commit()
-
-    if ActividadSistema.query.count() == 0:
-        print("Poblando bitácora inicial de actividades...")
-        actividades_iniciales = [
-            ("AJUSTE", "STOCK", "José Ríos (Gerente): Ajustó el stock de 'Aceite Vegetal Premium' [INS-001] a 25.50 Lt. Motivo: Corrección por inventario físico", 2, "José Ríos", "Gerente"),
-            ("MOVIMIENTO", "KARDEX", "Carlos Rodríguez (Técnico): Registró ENTRADA de 50.00 Kg de 'Arroz Superior Extra' [ABA-002] en Almacén Principal", 1, "Carlos Rodríguez", "Técnico"),
-            ("CREAR", "PRODUCTO", "Carlos Rodríguez (Técnico): Agregó nuevo ítem 'Agua Mineral 500ml' [BEB-004] al catálogo maestro", 1, "Carlos Rodríguez", "Técnico"),
-            ("INVENTARIO", "INVENTARIO", "Roberto Díaz (Miembro de equipo): Realizó la toma física periódica de 'Pechuga de Pollo Fresca' (18.50 Kg)", 3, "Roberto Díaz", "Miembro de equipo"),
-            ("SOLICITUD", "SOLICITUD", "José Ríos (Gerente): Emitió requerimiento de insumos bajo la solicitud de compra SOL-20260901001", 2, "José Ríos", "Gerente"),
-        ]
-        for tipo, ent, desc, u_id, u_nom, u_rol in actividades_iniciales:
-            act = ActividadSistema(
-                id_usuario=u_id,
-                usuario_nombre=u_nom,
-                usuario_rol=u_rol,
-                tipo_accion=tipo,
-                entidad=ent,
-                descripcion=desc,
-                fecha_hora=datetime.now()
-            )
-            db.session.add(act)
-        db.session.commit()
-
-    # Sincronizar secuencias en PostgreSQL
-    if db.engine.dialect.name == "postgresql":
-        from sqlalchemy import text
-        consultas = [
-            "SELECT setval('usuario_id_usuario_seq', COALESCE((SELECT MAX(id_usuario) FROM usuario), 1));",
-            "SELECT setval('perfiles_id_perfil_seq', COALESCE((SELECT MAX(id_perfil) FROM perfiles), 1));",
-            "SELECT setval('opcion_menu_id_opcion_menu_seq', COALESCE((SELECT MAX(id_opcion_menu) FROM opcion_menu), 1));",
-            "SELECT setval('categoria_producto_id_categoria_seq', COALESCE((SELECT MAX(id_categoria) FROM categoria_producto), 1));",
-            "SELECT setval('proveedor_id_proveedor_seq', COALESCE((SELECT MAX(id_proveedor) FROM proveedor), 1));",
-            "SELECT setval('producto_id_producto_seq', COALESCE((SELECT MAX(id_producto) FROM producto), 1));",
-        ]
-        for c in consultas:
-            try:
-                db.session.execute(text(c))
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-
-    print("\nSeed completado con éxito!")
-    print("------------------------------------------------------------")
-    print("Usuarios y contraseñas oficiales cargados:")
-    print("1. Carlos Rodriguez Torres -> crodriguez@gmail.com | Clave: Tec123* (Técnico)")
-    print("2. José Ríos Martínez      -> jrios@gmail.com      | Clave: Ger123* (Gerente)")
-    print("3. Roberto Díaz Guerrero   -> rdiaz@gmail.com      | Clave: Equ123* (Miembro de equipo)")
-    print("------------------------------------------------------------")
-
-
-def ejecutar_seed():
-    """Alias para compatibilidad retroactiva."""
-    poblar_datos()
+    print("\n¡Seed completado con éxito! Las 5 tablas están sincronizadas con las fotos.")
 
 
 if __name__ == "__main__":
-    poblar_datos()
+    from app import create_app
+    app = create_app()
+    with app.app_context():
+        _ejecutar_poblado_interno()

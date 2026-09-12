@@ -3,9 +3,9 @@ from ..extensions import db
 
 class OpcionMenu(db.Model):
     """
-    Modelo de la tabla 'opcion_menu' en la base de datos barbarito.
+    Modelo de la tabla 'OpcionesMenu'.
     """
-    __tablename__ = "opcion_menu"
+    __tablename__ = "OpcionesMenu"
 
     IdOpcionMenu = db.Column("id_opcion_menu", db.Integer, primary_key=True, autoincrement=True)
     Nombre = db.Column("nombre", db.String(100), nullable=False)
@@ -14,7 +14,7 @@ class OpcionMenu(db.Model):
     IdPadre = db.Column(
         "id_padre",
         db.Integer,
-        db.ForeignKey("opcion_menu.id_opcion_menu", ondelete="CASCADE"),
+        db.ForeignKey("OpcionesMenu.id_opcion_menu", ondelete="CASCADE"),
         nullable=True,
     )
     EstadoRegistro = db.Column("estado_registro", db.SmallInteger, default=1, nullable=False)
@@ -67,9 +67,9 @@ class OpcionMenu(db.Model):
 
 class OpcionMenuPerfil(db.Model):
     """
-    Modelo de la tabla intermedia 'perfil_opcion_menu' en la base de datos barbarito.
+    Modelo de la tabla intermedia 'OpcionesMenu_Perfiles'.
     """
-    __tablename__ = "perfil_opcion_menu"
+    __tablename__ = "OpcionesMenu_Perfiles"
 
     IdPerfil = db.Column(
         "id_perfil",
@@ -80,16 +80,31 @@ class OpcionMenuPerfil(db.Model):
     IdOpcionMenu = db.Column(
         "id_opcion_menu",
         db.Integer,
-        db.ForeignKey("opcion_menu.id_opcion_menu", ondelete="CASCADE"),
+        db.ForeignKey("OpcionesMenu.id_opcion_menu", ondelete="CASCADE"),
         primary_key=True,
     )
-    PuedeConsultar = db.Column("puede_consultar", db.Boolean, default=True)
-    PuedeCrear = db.Column("puede_crear", db.Boolean, default=False)
-    PuedeEditar = db.Column("puede_editar", db.Boolean, default=False)
-    PuedeRevisar = db.Column("puede_revisar", db.Boolean, default=False)
-    PuedeCerrar = db.Column("puede_cerrar", db.Boolean, default=False)
-    Orden = db.Column("orden", db.SmallInteger, default=0, nullable=False)
+    Orden = db.Column("orden", db.SmallInteger, default=1, nullable=False)
     EstadoRegistro = db.Column("estado_registro", db.SmallInteger, default=1, nullable=False)
+
+    @property
+    def PuedeConsultar(self):
+        return True
+
+    @property
+    def PuedeCrear(self):
+        return True
+
+    @property
+    def PuedeEditar(self):
+        return True
+
+    @property
+    def PuedeRevisar(self):
+        return True
+
+    @property
+    def PuedeCerrar(self):
+        return True
 
     opcion_menu = db.relationship("OpcionMenu", lazy="joined")
     perfil = db.relationship("Perfil", lazy="joined")
@@ -99,9 +114,11 @@ class OpcionMenuPerfil(db.Model):
             "idOpcionMenu": self.IdOpcionMenu,
             "idPerfil": self.IdPerfil,
             "orden": self.Orden,
-            "puedeConsultar": self.PuedeConsultar,
-            "puedeCrear": self.PuedeCrear,
-            "puedeEditar": self.PuedeEditar,
+            "puedeConsultar": True,
+            "puedeCrear": True,
+            "puedeEditar": True,
+            "puedeRevisar": True,
+            "puedeCerrar": True,
             "estadoRegistro": self.EstadoRegistro,
             "opcion": self.opcion_menu.to_dict() if self.opcion_menu else None,
             "perfil": self.perfil.to_dict() if self.perfil else None,

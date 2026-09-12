@@ -1,15 +1,3 @@
-from .almacen import (
-    CategoriaProducto,
-    InventarioCierre,
-    InventarioCierreDetalle,
-    MovimientoInventario,
-    MovimientoInventarioDetalle,
-    OrdenCompra,
-    OrdenCompraDetalle,
-    Producto,
-    Proveedor,
-    ActividadSistema,
-)
 from .opcion_menu import OpcionMenu, OpcionMenuPerfil
 from .perfil import Perfil
 from .usuario import Usuario, UsuarioPerfil
@@ -20,14 +8,4 @@ __all__ = [
     "UsuarioPerfil",
     "OpcionMenu",
     "OpcionMenuPerfil",
-    "Producto",
-    "CategoriaProducto",
-    "Proveedor",
-    "MovimientoInventario",
-    "MovimientoInventarioDetalle",
-    "OrdenCompra",
-    "OrdenCompraDetalle",
-    "InventarioCierre",
-    "InventarioCierreDetalle",
-    "ActividadSistema",
 ]

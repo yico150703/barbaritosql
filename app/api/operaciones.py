@@ -24,29 +24,7 @@ bp = Blueprint("operaciones", __name__)
 
 
 def asegurar_esquema():
-    """
-    Garantiza que la tabla 'actividad_sistema' y la columna 'stock_actual' existan en la BD.
-    """
-    try:
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS actividad_sistema (
-                id_actividad SERIAL PRIMARY KEY,
-                id_usuario INTEGER,
-                usuario_nombre VARCHAR(150) NOT NULL DEFAULT 'Usuario',
-                usuario_rol VARCHAR(100) NOT NULL DEFAULT 'Operativo',
-                tipo_accion VARCHAR(50) NOT NULL,
-                entidad VARCHAR(50) NOT NULL,
-                descripcion TEXT NOT NULL,
-                fecha_hora TIMESTAMP DEFAULT NOW()
-            );
-        """))
-        db.session.execute(text("""
-            ALTER TABLE producto ADD COLUMN IF NOT EXISTS stock_actual NUMERIC(10, 3) DEFAULT 0;
-        """))
-        db.session.commit()
-    except Exception as ex:
-        db.session.rollback()
-        print("Aviso al verificar esquema de actividades/stock:", ex)
+    pass
 
 
 def registrar_actividad(tipo_accion, entidad, descripcion, id_usuario=None):
