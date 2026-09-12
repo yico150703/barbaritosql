@@ -62,30 +62,10 @@ def obtener_perfil(id_perfil):
 @jwt_required()
 @requiere_rol(1, "Técnico")
 def crear_perfil():
-    datos = request.get_json() or {}
-    nombre = datos.get("nombre") or datos.get("Nombre")
-    descripcion = datos.get("descripcion") or datos.get("Descripcion", "")
-
-    if not nombre or not str(nombre).strip():
-        return jsonify({"success": False, "mensaje": "El nombre del perfil es obligatorio."}), 400
-
-    nombre_limpio = str(nombre).strip()
-    if Perfil.query.filter(Perfil.Nombre.ilike(nombre_limpio), Perfil.EstadoRegistro == 1).first():
-        return jsonify({"success": False, "mensaje": "Ya existe un perfil activo con ese nombre."}), 409
-
-    nuevo_perfil = Perfil(
-        Nombre=nombre_limpio,
-        Descripcion=str(descripcion).strip() if descripcion else None,
-        EstadoRegistro=1
-    )
-    db.session.add(nuevo_perfil)
-    db.session.commit()
-
     return jsonify({
-        "success": True,
-        "mensaje": "Perfil creado exitosamente.",
-        "perfil": nuevo_perfil.to_dict()
-    }), 201
+        "success": False,
+        "mensaje": "La creación de nuevos perfiles ha sido deshabilitada para proteger la integridad de la base de datos y la arquitectura RBAC."
+    }), 403
 
 
 @bp.route("/<int:id_perfil>", methods=["PUT"])
