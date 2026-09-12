@@ -18,7 +18,7 @@ def listar_opciones():
     incluir_inactivos = request.args.get("incluir_inactivos", "false").lower() == "true"
     solo_padres = request.args.get("solo_padres", "false").lower() == "true"
     page = request.args.get("page", type=int)
-    limit = request.args.get("limit", 15, type=int)
+    limit = request.args.get("limit", 50, type=int)
 
     query = OpcionMenu.query
     if not incluir_inactivos:
@@ -34,7 +34,7 @@ def listar_opciones():
             OpcionMenu.Descripcion.ilike(f"%{query_str}%")
         )
 
-    query = query.order_by(OpcionMenu.IdPadre.asc().nullsfirst(), OpcionMenu.IdOpcionMenu.asc())
+    query = query.order_by(OpcionMenu.IdOpcionMenu.asc())
 
     if page:
         paginado = query.paginate(page=page, per_page=limit, error_out=False)
